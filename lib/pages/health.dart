@@ -1,0 +1,223 @@
+import 'package:flutter/material.dart';
+
+import '../data.dart';
+import '../store.dart';
+
+class HealthPage extends StatelessWidget {
+  const HealthPage({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Health · ఆరోగ్యం'),
+          bottom: const TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: [Tab(text: 'Vaccines'), Tab(text: 'Calendar'), Tab(text: 'Notes'), Tab(text: 'Growth')]),
+        ),
+        body: ListenableBuilder(
+          listenable: Store.i,
+          builder: (context, _) => const TabBarView(children: [_Vaccines(), _Events(), _Notes(), _Growth()]),
+        ),
+      ),
+    );
+  }
+}
+
+class _Vaccines extends StatelessWidget {
+  const _Vaccines();
+  @override
+  Widget build(BuildContext context) {
+    final b = Store.i.birth;
+    if (b == null) return const Center(child: Text('Add her date of birth on Home first.'));
+    final now = DateTime.now(), cs = Theme.of(context).colorScheme;
+    return ListView(padding: const EdgeInsets.all(12), children: [
+      ...vaccines.map((v) {
+        final due = v.due(b), done = Store.i.vaxDone(v.key), diff = DateTime(due.year, due.month, due.day).difference(DateTime(now.year, now.month, now.day)).inDays;
+        final (String label, Color col) = done
+            ? ('Done', Colors.teal)
+            : diff < 0
+                ? ('${-diff} days late', cs.error)
+                : diff <= 7
+                    ? (diff == 0 ? 'Today' : 'In $diff days', Colors.orange)
+                    : ('In ${diff < 60 ? '$diff days' : '${(diff / 30.44).round()} months'}', cs.outline);
+        return Card(
+          child: CheckboxListTile(
+            value: done,
+            onChanged: (x) => Store.i.toggleVax(v.key, x == true),
+            title: Text('${v.label} · ${dmy(due)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(v.items.join(', ')),
+            secondary: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: col.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)), child: Text(label, style: TextStyle(color: col, fontWeight: FontWeight.w700, fontSize: 12))),
+          ),
+        );
+      }),
+      const Padding(padding: EdgeInsets.all(8), child: Text('Based on the Indian Academy of Pediatrics schedule. Follow your pediatrician\'s card if it differs.', style: TextStyle(fontSize: 12))),
+    ]);
+  }
+}
+
+class _Events extends StatelessWidget {
+  const _Events();
+  Future<void> _add(BuildContext context) async {
+    final title = TextEditingController(), note = TextEditingController();
+    DateTime date = DateTime.now();
+    String kind = 'Doctor visit';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, set) => AlertDialog(
+          title: const Text('Add an event'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(controller: title, decoration: const InputDecoration(labelText: 'What', hintText: 'Pediatrician check-up, Barasala…')),
+              ListTile(contentPadding: EdgeInsets.zero, title: Text(dmy(date)), trailing: const Icon(Icons.calendar_month), onTap: () async {
+                final d = await showDatePicker(context: c, firstDate: DateTime(2024), lastDate: DateTime(2040), initialDate: date);
+                if (d != null) set(() => date = d);
+              }),
+              DropdownButtonFormField<String>(initialValue: kind, items: ['Doctor visit', 'Ceremony', 'Reminder', 'Other'].map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(), onChanged: (v) => set(() => kind = v ?? 'Other')),
+              TextField(controller: note, decoration: const InputDecoration(labelText: 'Note (optional)')),
+            ]),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Add'))],
+        ),
+      ),
+    );
+    if (ok == true && title.text.trim().isNotEmpty) {
+      await Store.i.addItem('events', {'id': Store.newId(), 'title': title.text.trim(), 'date': ymd(date), 'kind': kind, 'note': note.text.trim()});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = Store.i.list('events')..sort((a, b) => a['date'].toString().compareTo(b['date'].toString()));
+    final today = ymd(DateTime.now());
+    final up = items.where((e) => e['date'].toString().compareTo(today) >= 0).toList(), past = items.where((e) => e['date'].toString().compareTo(today) < 0).toList();
+    Widget row(Map<String, dynamic> e) {
+      final d = DateTime.parse(e['date'].toString());
+      return Card(
+        child: ListTile(
+          leading: CircleAvatar(child: Text('${d.day}\n${months3[d.month - 1]}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800))),
+          title: Text(e['title'].toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text([e['kind'], e['note']].where((x) => x != null && x.toString().isNotEmpty).join(' · ')),
+          trailing: IconButton(icon: const Icon(Icons.close), onPressed: () => Store.i.removeItem('events', e['id'].toString())),
+        ),
+      );
+    }
+
+    return Scaffold(
+      floatingActionButton: FloatingActionButton(onPressed: () => _add(context), child: const Icon(Icons.add)),
+      body: ListView(padding: const EdgeInsets.fromLTRB(12, 12, 12, 90), children: [
+        if (up.isEmpty) const Padding(padding: EdgeInsets.all(20), child: Text('No upcoming events. Add doctor visits and ceremonies with +.')),
+        ...up.map(row),
+        if (past.isNotEmpty) const Padding(padding: EdgeInsets.all(8), child: Text('Past', style: TextStyle(fontWeight: FontWeight.w700))),
+        ...past.reversed.map(row),
+      ]),
+    );
+  }
+}
+
+class _Notes extends StatefulWidget {
+  const _Notes();
+  @override
+  State<_Notes> createState() => _NotesState();
+}
+
+class _NotesState extends State<_Notes> {
+  final c = TextEditingController();
+  String tag = 'General';
+  @override
+  Widget build(BuildContext context) {
+    final notes = Store.i.list('notes')..sort((a, b) => (b['at'] as num).compareTo(a['at'] as num));
+    return ListView(padding: const EdgeInsets.all(12), children: [
+      TextField(controller: c, minLines: 2, maxLines: 6, decoration: const InputDecoration(hintText: 'Doctor said…, fed at 3 AM…, first time she held my finger…', border: OutlineInputBorder())),
+      const SizedBox(height: 8),
+      Wrap(spacing: 6, children: ['General', 'Health', 'Feeding', 'Sleep', 'Firsts'].map((t) => ChoiceChip(label: Text(t), selected: tag == t, onSelected: (_) => setState(() => tag = t))).toList()),
+      Align(
+        alignment: Alignment.centerRight,
+        child: FilledButton(
+          onPressed: () async {
+            if (c.text.trim().isEmpty) return;
+            await Store.i.addItem('notes', {'id': Store.newId(), 'text': c.text.trim(), 'tag': tag, 'at': DateTime.now().millisecondsSinceEpoch});
+            c.clear();
+          },
+          child: const Text('Save note'),
+        ),
+      ),
+      ...notes.map((n) {
+        final at = DateTime.fromMillisecondsSinceEpoch((n['at'] as num).toInt());
+        return Card(
+          child: ListTile(
+            title: Text(n['text'].toString()),
+            subtitle: Text('${dmy(at)} ${hm(at)} · ${n['tag']}'),
+            trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => Store.i.removeItem('notes', n['id'].toString())),
+          ),
+        );
+      }),
+    ]);
+  }
+}
+
+class _Growth extends StatelessWidget {
+  const _Growth();
+  Future<void> _add(BuildContext context) async {
+    final wt = TextEditingController(), ht = TextEditingController(), hc = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text("Today's measurements"),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: wt, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Weight (kg)')),
+          TextField(controller: ht, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Length (cm)')),
+          TextField(controller: hc, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Head size (cm)')),
+        ]),
+        actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Save'))],
+      ),
+    );
+    if (ok == true) {
+      await Store.i.addItem('growth', {'id': Store.newId(), 'date': ymd(DateTime.now()), 'wt': double.tryParse(wt.text), 'ht': double.tryParse(ht.text), 'hc': double.tryParse(hc.text)});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final g = Store.i.list('growth')..sort((a, b) => a['date'].toString().compareTo(b['date'].toString()));
+    final wts = g.where((x) => x['wt'] != null).map((x) => (x['wt'] as num).toDouble()).toList();
+    return Scaffold(
+      floatingActionButton: FloatingActionButton(onPressed: () => _add(context), child: const Icon(Icons.add)),
+      body: ListView(padding: const EdgeInsets.fromLTRB(12, 12, 12, 90), children: [
+        if (wts.length >= 2)
+          Card(child: Padding(padding: const EdgeInsets.all(16), child: SizedBox(height: 160, child: CustomPaint(painter: _LinePainter(wts, Theme.of(context).colorScheme.primary), child: Container())))),
+        if (g.isEmpty) const Padding(padding: EdgeInsets.all(20), child: Text('Add her weight, length and head size after each doctor visit. Tap +.')),
+        ...g.reversed.map((x) => Card(
+              child: ListTile(
+                title: Text([if (x['wt'] != null) '${x['wt']} kg', if (x['ht'] != null) '${x['ht']} cm long', if (x['hc'] != null) 'head ${x['hc']} cm'].join(' · ')),
+                subtitle: Text(x['date'].toString()),
+                trailing: IconButton(icon: const Icon(Icons.close), onPressed: () => Store.i.removeItem('growth', x['id'].toString())),
+              ),
+            )),
+      ]),
+    );
+  }
+}
+
+class _LinePainter extends CustomPainter {
+  final List<double> v;
+  final Color c;
+  _LinePainter(this.v, this.c);
+  @override
+  void paint(Canvas canvas, Size s) {
+    final mn = v.reduce((a, b) => a < b ? a : b) - 0.2, mx = v.reduce((a, b) => a > b ? a : b) + 0.2;
+    final p = Paint()..color = c..strokeWidth = 3..style = PaintingStyle.stroke..strokeCap = StrokeCap.round;
+    final path = Path();
+    for (var i = 0; i < v.length; i++) {
+      final x = s.width * i / (v.length - 1), y = s.height - (v[i] - mn) / (mx - mn) * s.height;
+      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+      canvas.drawCircle(Offset(x, y), 4, Paint()..color = c);
+    }
+    canvas.drawPath(path, p);
+    final tp = TextPainter(text: TextSpan(text: 'Weight: ${v.first} → ${v.last} kg', style: TextStyle(color: c, fontWeight: FontWeight.w700)), textDirection: TextDirection.ltr)..layout();
+    tp.paint(canvas, Offset.zero);
+  }
+
+  @override
+  bool shouldRepaint(covariant _LinePainter o) => o.v != v;
+}

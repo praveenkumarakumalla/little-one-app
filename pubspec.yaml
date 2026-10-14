@@ -1,0 +1,47 @@
+name: little_one
+description: "Little One Diary – baby diary, feeding alarm, sleep watch, lullabies and jatakam."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  shared_preferences: ^2.3.0
+  path_provider: ^2.1.4
+  image_picker: ^1.1.2
+  video_player: ^2.9.1
+  flutter_tts: ^4.2.0
+  audioplayers: ^6.1.0
+  file_selector: ^1.0.3
+  record: ">=6.0.0 <8.0.0"
+  permission_handler: ">=11.3.0 <14.0.0"
+  alarm: ">=5.0.0 <6.0.0"
+  wakelock_plus: ^1.2.8
+  url_launcher: ^6.3.0
+  share_plus: ^10.1.0
+  youtube_player_iframe: ">=5.2.0 <7.0.0"
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ">=4.0.0 <7.0.0"
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon.png"
+  adaptive_icon_background: "#FFE3EE"
+  adaptive_icon_foreground: "assets/icon_fg.png"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/patrika.json
+    - assets/songs.json
+    - assets/chart.json
+    - assets/audio/music_box.wav
+    - assets/audio/alarm.wav

@@ -1,0 +1,13 @@
+# generated in the cloud build
+android/
+ios/
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.idea/
+*.iml
+.metadata
+pubspec.lock
+test/
