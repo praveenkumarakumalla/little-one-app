@@ -116,7 +116,7 @@ must(act is not None, "MainActivity not found")
 pkg = re.search(r"^package\s+([\w.]+)", read(act), re.M).group(1)
 d = os.path.dirname(act)
 if act.endswith(".java"): os.remove(act)
-src = os.path.join(ROOT, "tool", "android")
+src = os.path.join(ROOT, "tool", "native")
 for f in ("MainActivity.kt", "ListenService.kt"):
     write(os.path.join(d, f), read(os.path.join(src, f)).replace("__PKG__", pkg))
 print("service added to", pkg)
