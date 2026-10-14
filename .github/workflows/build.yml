@@ -44,7 +44,7 @@ jobs:
       - name: Build APK
         run: |
           set -o pipefail
-          flutter build apk --release 2>&1 | tee build.log
+          flutter build apk --release --split-per-abi 2>&1 | tee build.log
 
       - name: Report build errors
         if: failure()
@@ -62,17 +62,22 @@ jobs:
           PY
 
       - name: Rename APK
-        run: cp build/app/outputs/flutter-apk/app-release.apk LittleOne.apk
+        run: |
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk LittleOne.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk LittleOne-older-phones.apk
+          ls -la *.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: LittleOne-apk
-          path: LittleOne.apk
+          path: "*.apk"
 
       - name: Publish download
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: Little One v1.0.${{ github.run_number }}
-          body: "Download **LittleOne.apk** below on your Android phone, open it and tap Install."
-          files: LittleOne.apk
+          body: "Download **LittleOne.apk** below on your Android phone, open it and tap Install. (Only if it says it can't install on your phone, use LittleOne-older-phones.apk.)"
+          files: |
+            LittleOne.apk
+            LittleOne-older-phones.apk
