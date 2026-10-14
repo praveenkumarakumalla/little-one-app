@@ -73,8 +73,11 @@ class _ShellState extends State<Shell> {
       if (set.alarms.isNotEmpty) _showFeedAlarm();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _askPermissions();
-      if (Chant.i.autoStart) Chant.i.start();
+      // start the chant right away; ask for permissions after, without blocking it
+      if (Chant.i.autoStart) unawaited(Chant.i.start());
+      try {
+        await _askPermissions();
+      } catch (_) {}
     });
     _life = AppLifecycleListener(
       onHide: () => Chant.i.stop(),

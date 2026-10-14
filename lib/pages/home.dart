@@ -76,7 +76,7 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('హరే రామ హరే కృష్ణ', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-                Text(c.on ? 'Playing softly${c.ownFile != null ? ' · your recording' : ''}' : 'Paused', style: const TextStyle(fontSize: 12)),
+                Text(c.error ?? (c.on ? 'Playing softly${c.ownFile != null ? ' · your recording' : ''}' : 'Paused · tap ▶'), style: TextStyle(fontSize: 12, color: c.error != null ? cs.error : null)),
               ])),
               IconButton.filledTonal(icon: Icon(c.on ? Icons.pause : Icons.play_arrow), onPressed: () => c.on ? c.stop() : c.start()),
             ]),
