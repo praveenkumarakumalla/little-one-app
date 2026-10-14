@@ -45,3 +45,4 @@ flutter:
     - assets/chart.json
     - assets/audio/music_box.wav
     - assets/audio/alarm.wav
+    - assets/audio/tanpura.wav

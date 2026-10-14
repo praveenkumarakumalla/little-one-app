@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'chant.dart';
 import 'data.dart';
 import 'store.dart';
 import 'voice.dart';
@@ -34,6 +35,7 @@ class SleepWatch extends ChangeNotifier {
   Future<String?> start() async {
     final p = await Permission.microphone.request();
     if (!p.isGranted) return 'Allow the microphone so the app can listen.';
+    await Chant.i.stop();
     final stream = await _rec.startStream(const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: sr, numChannels: 1));
     _base = null;
     _calib.clear();

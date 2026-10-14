@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
+import '../chant.dart';
 import '../store.dart';
 import '../voice.dart';
 
@@ -40,6 +41,7 @@ class _SongsPageState extends State<SongsPage> {
     }
     if (it['vid'] != null) {
       await Voice.i.stopMusic();
+      await Chant.i.stop();
       if (context.mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => YtPage(vid: it['vid'].toString(), alt: it['alt']?.toString(), title: title)));
       return;
     }
