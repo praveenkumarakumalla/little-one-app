@@ -13,6 +13,7 @@ import 'pages/memories.dart';
 import 'pages/songs.dart';
 import 'store.dart';
 import 'voice.dart';
+import 'watch.dart';
 
 final navKey = GlobalKey<NavigatorState>();
 
@@ -77,6 +78,9 @@ class _ShellState extends State<Shell> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         await _askPermissions();
+      } catch (_) {}
+      try {
+        if (Store.i.settings['autoWatch'] == true) await SleepWatch.i.start();
       } catch (_) {}
     });
   }

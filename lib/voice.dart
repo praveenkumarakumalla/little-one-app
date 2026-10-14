@@ -35,12 +35,13 @@ class Voice {
   bool get hasTelugu => _lang == 'te-IN';
 
   /// [te] Telugu text, [dev] same words in Devanagari, [lat] same words in Latin letters.
-  Future<void> say(String te, {String? dev, String? lat, double pitch = 1.0}) async {
+  Future<void> say(String te, {String? dev, String? lat, double pitch = 1.0, double volume = 1.0}) async {
     String text = te;
     if (_lang == 'hi-IN' && dev != null) text = dev;
     if (_lang == 'en-IN' && lat != null) text = lat;
     try {
       await _tts.setPitch(pitch);
+      await _tts.setVolume(volume);
       speaking = true;
       await _tts.speak(text);
     } catch (_) {}

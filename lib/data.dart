@@ -1,3 +1,4 @@
+import 'cry_sound.dart';
 import 'store.dart';
 
 class Vax {
@@ -93,7 +94,7 @@ class CryReason {
 }
 
 /// Most likely reasons for crying, from her feed / nappy / sleep log, the hour and her age.
-List<CryReason> cryReasons() {
+List<CryReason> cryReasons({CrySound? sound}) {
   final s = Store.i, now = DateTime.now(), hr = now.hour;
   final interval = (s.settings['interval'] as num?)?.toInt() ?? 150;
   final lf = s.last('feeds'), ln = s.last('nappies'), ls = s.last('sleeps');
@@ -102,7 +103,7 @@ List<CryReason> cryReasons() {
   final b = s.birth;
   final ageDays = b == null ? null : now.difference(b).inDays;
   String ago(int m) => m >= 60 ? '${m ~/ 60} గంటల ${m % 60} నిమిషాల' : '$m నిమిషాల';
-  final r = <CryReason>[];
+  var r = <CryReason>[];
   if (since == null) {
     r.add(CryReason('hungry', 60, 'ఆకలి', 'Hungry', 'No feed logged yet, so check hunger first.', 'Offer a feed. Newborns feed 8–12 times a day.', 'పాపకి ఆకలిగా ఉండవచ్చు. పాలు పట్టి చూడండి.'));
   } else if (since >= interval - 30) {
@@ -129,6 +130,23 @@ List<CryReason> cryReasons() {
   r.add(CryReason('cuddle', 48, 'ఎత్తుకోవాలని', 'Wants cuddles', 'Sometimes she just needs your warmth.', 'Pick her up, hold her close, talk and sing softly.', 'అమ్మ ఒడి కావాలేమో. ఎత్తుకోండి.'));
   r.add(CryReason('temp', 42, 'వేడి / చలి', 'Too hot or cold', 'Babies can\'t control temperature well.', 'Feel the back of her neck: sweaty means remove a layer; cold means add one.', 'వేడిగా లేదా చలిగా ఉందేమో మెడ వెనుక తాకి చూడండి.'));
   r.add(CryReason('noise', 30, 'ఎక్కువ శబ్దం', 'Overstimulated', 'Too many people, noise or light can overwhelm her.', 'Move to a quiet, dim room.', 'చుట్టూ చాలా శబ్దం ఉంది. నిశ్శబ్దమైన గదికి తీసుకెళ్ళండి.'));
+  if (sound != null) {
+    final boost = {
+      'hungry': 35 * sound.hunger,
+      'sleep': 35 * sound.tired,
+      'nappy': 22 * sound.fuss,
+      'temp': 12 * sound.fuss,
+      'cuddle': 10 * sound.fuss,
+      'burp': 22 * sound.pain,
+      'colic': 22 * sound.pain,
+    };
+    r = r.map((x) => boost[x.key] == null || boost[x.key]! < 1 ? x : CryReason(x.key, x.score + boost[x.key]!, x.te, x.en, x.why, x.todo, x.say)).toList();
+    if (sound.pain >= 0.4) {
+      r.add(CryReason('unwell', 35 + 65 * sound.pain, 'నొప్పి', 'Pain or discomfort', 'Her cry sounds sudden, loud and high-pitched.',
+          'Check: fever (38°C+), tight clothes, a hair wrapped round a finger or toe, nappy rash, wind. Hold her upright. If the pain cry goes on, or with fever, vomiting or floppiness — see a doctor.',
+          'నొప్పిగా ఉందేమో. జ్వరం ఉందా, బట్టలు బిగుతుగా ఉన్నాయా, వేళ్ళకు వెంట్రుక చుట్టుకుందా చూడండి. భుజం మీద వేసుకుని వీపు తట్టండి.'));
+    }
+  }
   return personalise(r, since);
 }
 

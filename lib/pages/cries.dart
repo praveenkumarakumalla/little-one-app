@@ -175,7 +175,7 @@ class CryHistoryPage extends StatelessWidget {
                       child: ListTile(
                         leading: Text(a?[1] ?? '😢', style: const TextStyle(fontSize: 28)),
                         title: Text(a == null ? '${hm(t)} · tap: what calmed her?' : '${hm(t)} · ${a[3]}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                        subtitle: Text('${c['src'] == 'auto' ? '🎧 heard by Sleep watch' : '👆 logged by you'} · guess: ${g[3]}$sf$dur'),
+                        subtitle: Text('${c['src'] == 'auto' ? '🎧 heard by Sleep watch' : '👆 logged by you'} · guess: ${g[3]}$sf$dur${c['sound'] is Map ? '\n🔊 ${(c['sound'] as Map)['en']}' : ''}'),
                         trailing: a != null && c['actual'] == c['guess'] ? const Icon(Icons.check_circle, color: Colors.teal) : null,
                         onTap: () => askWhatCalmed(context, c['id'].toString()),
                         onLongPress: () async {

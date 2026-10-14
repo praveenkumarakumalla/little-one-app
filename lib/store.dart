@@ -160,13 +160,13 @@ class Store extends ChangeNotifier {
   bool inShortlist(String name) => (d['shortlist'] as List).contains(name);
 
   /// Saves one cry. If one was saved in the last 3 minutes, returns that one instead.
-  Future<String> addCry(String src, String guess) async {
+  Future<String> addCry(String src, String guess, {Map<String, dynamic>? extra}) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final l = list('cries');
     if (l.isNotEmpty && now - (l.last['at'] as num).toInt() < 3 * 60000 && l.last['actual'] == null) return l.last['id'].toString();
     final lf = last('feeds');
     final id = newId();
-    l.add({'id': id, 'at': now, 'src': src, 'guess': guess, if (lf != null) 'sinceFeed': DateTime.now().difference(lf).inMinutes});
+    l.add({'id': id, 'at': now, 'src': src, 'guess': guess, ...?extra, if (lf != null) 'sinceFeed': DateTime.now().difference(lf).inMinutes});
     d['cries'] = l.length > 1500 ? l.sublist(l.length - 1500) : l;
     await save();
     return id;

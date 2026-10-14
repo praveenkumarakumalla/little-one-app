@@ -81,7 +81,7 @@ write(gp, s + "\n")
 mp = os.path.join(A, "app", "src", "main", "AndroidManifest.xml")
 m = read(mp)
 perms = ["INTERNET", "RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "POST_NOTIFICATIONS", "VIBRATE", "WAKE_LOCK", "RECEIVE_BOOT_COMPLETED",
-         "USE_FULL_SCREEN_INTENT", "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_MEDIA_PLAYBACK", "SCHEDULE_EXACT_ALARM", "USE_EXACT_ALARM",
+         "USE_FULL_SCREEN_INTENT", "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_MEDIA_PLAYBACK", "FOREGROUND_SERVICE_MICROPHONE", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "SCHEDULE_EXACT_ALARM", "USE_EXACT_ALARM",
          "ACCESS_NOTIFICATION_POLICY", "READ_MEDIA_AUDIO", "READ_MEDIA_IMAGES", "READ_MEDIA_VIDEO"]
 block = "".join(f'    <uses-permission android:name="android.permission.{p}"/>\n' for p in perms)
 block += '    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>\n'
@@ -101,6 +101,25 @@ if "<queries>" in m:
 else:
     m = m.replace("</manifest>", "    <queries>\n" + q + "    </queries>\n</manifest>")
 write(mp, m)
+
+# ---- background listening service ----
+svc = '        <service android:name=".ListenService" android:exported="false" android:stopWithTask="true" android:foregroundServiceType="microphone" />\n'
+m = read(mp)
+m = m.replace("    </application>", svc + "    </application>", 1)
+must("ListenService" in m, "could not add ListenService to manifest")
+write(mp, m)
+act = None
+for dp, _, fs in os.walk(os.path.join(A, "app", "src", "main")):
+    for f in fs:
+        if f in ("MainActivity.kt", "MainActivity.java"): act = os.path.join(dp, f)
+must(act is not None, "MainActivity not found")
+pkg = re.search(r"^package\s+([\w.]+)", read(act), re.M).group(1)
+d = os.path.dirname(act)
+if act.endswith(".java"): os.remove(act)
+src = os.path.join(ROOT, "tool", "android")
+for f in ("MainActivity.kt", "ListenService.kt"):
+    write(os.path.join(d, f), read(os.path.join(src, f)).replace("__PKG__", pkg))
+print("service added to", pkg)
 
 # ---- remove the template test that refers to MyApp ----
 t = os.path.join(ROOT, "test", "widget_test.dart")
