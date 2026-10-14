@@ -4,7 +4,6 @@ import 'package:alarm/alarm.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import 'chant.dart';
 import 'feed_alarm.dart';
 import 'pages/health.dart';
 import 'pages/home.dart';
@@ -64,7 +63,6 @@ class _ShellState extends State<Shell> {
   int tab = 0;
   StreamSubscription? _ringSub;
   bool _dialogOpen = false;
-  AppLifecycleListener? _life;
 
   @override
   void initState() {
@@ -73,16 +71,10 @@ class _ShellState extends State<Shell> {
       if (set.alarms.isNotEmpty) _showFeedAlarm();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // start the chant right away; ask for permissions after, without blocking it
-      if (Chant.i.autoStart) unawaited(Chant.i.start());
       try {
         await _askPermissions();
       } catch (_) {}
     });
-    _life = AppLifecycleListener(
-      onHide: () => Chant.i.stop(),
-      onShow: () { if (Chant.i.autoStart) Chant.i.start(); },
-    );
   }
 
   Future<void> _askPermissions() async {
@@ -93,14 +85,12 @@ class _ShellState extends State<Shell> {
   @override
   void dispose() {
     _ringSub?.cancel();
-    _life?.dispose();
     super.dispose();
   }
 
   Future<void> _showFeedAlarm() async {
     if (_dialogOpen) return;
     _dialogOpen = true;
-    await Chant.i.stop();
     unawaited(Voice.i.babyAsksMilk());
     final ctx = navKey.currentContext;
     if (ctx == null) {

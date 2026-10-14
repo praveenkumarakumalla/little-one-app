@@ -1,7 +1,6 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
-import 'chant.dart';
 
 /// Telugu voice (falls back to Hindi / Indian English) and app sounds.
 class Voice {
@@ -69,14 +68,12 @@ class Voice {
   bool get musicOn => music.state == PlayerState.playing;
 
   Future<void> playMusicBox() async {
-    await Chant.i.stop();
     await music.setReleaseMode(ReleaseMode.loop);
     nowPlaying = 'Music box';
     await music.play(AssetSource('audio/music_box.wav'));
   }
 
   Future<void> playFile(String path, String title) async {
-    await Chant.i.stop();
     await music.setReleaseMode(ReleaseMode.loop);
     nowPlaying = title;
     await music.play(DeviceFileSource(path));

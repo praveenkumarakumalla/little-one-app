@@ -2,9 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'package:file_selector/file_selector.dart' show openFile, XTypeGroup;
-
-import '../chant.dart';
 import '../data.dart';
 import '../feed_alarm.dart';
 import '../store.dart';
@@ -42,7 +39,6 @@ class _HomePageState extends State<HomePage> {
       builder: (context, _) => SafeArea(
         child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 24), children: [
           if (!s.hasProfile) _setupCard(context) else _hero(context),
-          _chantCard(context),
           _feedCard(context),
           Row(children: [
             Expanded(child: _quick(context, '🧷', 'Nappy changed', () async { await s.addTime('nappies'); _snack('Nappy change logged'); })),
@@ -61,51 +57,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-
-  Widget _chantCard(BuildContext context) {
-    final c = Chant.i, cs = Theme.of(context).colorScheme;
-    return ListenableBuilder(
-      listenable: c,
-      builder: (context, _) => Card(
-        color: cs.secondaryContainer.withValues(alpha: 0.6),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              const Text('🪷', style: TextStyle(fontSize: 26)),
-              const SizedBox(width: 10),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('హరే రామ హరే కృష్ణ', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-                Text(c.error ?? (c.on ? 'Playing softly${c.ownFile != null ? ' · your recording' : ''}' : 'Paused · tap ▶'), style: TextStyle(fontSize: 12, color: c.error != null ? cs.error : null)),
-              ])),
-              IconButton.filledTonal(icon: Icon(c.on ? Icons.pause : Icons.play_arrow), onPressed: () => c.on ? c.stop() : c.start()),
-            ]),
-            Row(children: [
-              const Icon(Icons.volume_down, size: 18),
-              Expanded(child: Slider(value: c.volume, min: 0.05, max: 1.0, onChanged: (v) => c.setVolume(v))),
-            ]),
-            Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              FilterChip(label: const Text('Play when app opens'), selected: c.autoStart, onSelected: (v) => Store.i.setSetting('chantOnOpen', v)),
-              TextButton(
-                onPressed: () async {
-                  if (c.ownFile != null) {
-                    await Store.i.setSetting('chantFile', null);
-                  } else {
-                    final f = await openFile(acceptedTypeGroups: [const XTypeGroup(label: 'Audio', extensions: ['mp3', 'm4a', 'aac', 'wav', 'ogg', 'opus'], mimeTypes: ['audio/*'])]);
-                    if (f == null) return;
-                    await Store.i.setSetting('chantFile', await Store.keepFile(f.path, 'chant'));
-                  }
-                  if (c.on) { await c.stop(); await c.start(); }
-                  setState(() {});
-                },
-                child: Text(c.ownFile != null ? 'Use built-in chant' : 'Use my own recording'),
-              ),
-            ]),
-          ]),
-        ),
-      ),
-    );
-  }
 
   Widget _setupCard(BuildContext context) => Card(
         child: Padding(
