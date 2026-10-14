@@ -44,7 +44,7 @@ jobs:
       - name: Build APK
         run: |
           set -o pipefail
-          flutter build apk --release --split-per-abi 2>&1 | tee build.log
+          flutter build apk --release --split-per-abi --build-name=1.0.${{ github.run_number }} --build-number=${{ github.run_number }} 2>&1 | tee build.log
 
       - name: Report build errors
         if: failure()
