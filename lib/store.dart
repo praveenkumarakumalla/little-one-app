@@ -46,6 +46,7 @@ class Store extends ChangeNotifier {
     d.putIfAbsent('songFiles', () => <String, dynamic>{});
     d.putIfAbsent('shortlist', () => <dynamic>[]);
     d.putIfAbsent('growth', () => <dynamic>[]);
+    d.putIfAbsent('cries', () => <dynamic>[]);
     d.putIfAbsent('mala', () => <String, dynamic>{});
     d.putIfAbsent('settings', () => <String, dynamic>{'interval': 150, 'alarm': true, 'sens': 18.0, 'wShh': true, 'wCry': true, 'wLull': true});
   }
@@ -157,6 +158,37 @@ class Store extends ChangeNotifier {
   }
 
   bool inShortlist(String name) => (d['shortlist'] as List).contains(name);
+
+  /// Saves one cry. If one was saved in the last 3 minutes, returns that one instead.
+  Future<String> addCry(String src, String guess) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final l = list('cries');
+    if (l.isNotEmpty && now - (l.last['at'] as num).toInt() < 3 * 60000 && l.last['actual'] == null) return l.last['id'].toString();
+    final lf = last('feeds');
+    final id = newId();
+    l.add({'id': id, 'at': now, 'src': src, 'guess': guess, if (lf != null) 'sinceFeed': DateTime.now().difference(lf).inMinutes});
+    d['cries'] = l.length > 1500 ? l.sublist(l.length - 1500) : l;
+    await save();
+    return id;
+  }
+
+  Future<void> updateCry(String id, Map<String, dynamic> f) async {
+    d['cries'] = list('cries').map((c) => c['id'] == id ? {...c, ...f} : c).toList();
+    await save();
+  }
+
+  int countCries() {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
+    return list('cries').where((c) => (c['at'] as num) >= start).length;
+  }
+
+  Map<String, dynamic>? get openCry {
+    final l = list('cries');
+    if (l.isEmpty || l.last['actual'] != null) return null;
+    if (DateTime.now().millisecondsSinceEpoch - (l.last['at'] as num).toInt() > 12 * 3600000) return null;
+    return l.last;
+  }
 
   static String newId() => DateTime.now().microsecondsSinceEpoch.toString();
 

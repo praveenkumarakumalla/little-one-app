@@ -8,6 +8,7 @@ import 'package:record/record.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'data.dart';
+import 'pages/cries.dart';
 import 'store.dart';
 import 'voice.dart';
 
@@ -169,6 +170,7 @@ class SleepWatch extends ChangeNotifier {
 
   Future<void> _onCry() async {
     final top = cryReasons().first;
+    unawaited(Store.i.addCry('auto', top.key));
     _muteUntil = DateTime.now().add(const Duration(seconds: 12));
     _frames.clear();
     _log('She cried → ${top.te} (${top.en})');
@@ -240,6 +242,17 @@ class WatchPage extends StatelessWidget {
             const SizedBox(height: 16),
             if (w.log.isNotEmpty) Text('What happened', style: Theme.of(context).textTheme.titleSmall),
             ...w.log.map((l) => Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(l))),
+            if (s.openCry != null)
+              Card(
+                color: cs.primaryContainer,
+                child: ListTile(
+                  leading: const Text('😢', style: TextStyle(fontSize: 26)),
+                  title: Text('She cried at ${hm(DateTime.fromMillisecondsSinceEpoch((s.openCry!['at'] as num).toInt()))}'),
+                  subtitle: const Text('Tap to tell what calmed her'),
+                  onTap: () => askWhatCalmed(context, s.openCry!['id'].toString()),
+                ),
+              ),
+            TextButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CryHistoryPage())), icon: const Icon(Icons.insights), label: const Text('Cry tracker · every cry & pattern')),
             const SizedBox(height: 16),
             Text('Keep this screen open near her, on the charger. The screen stays on while listening.', style: TextStyle(color: cs.outline)),
           ]),

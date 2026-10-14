@@ -86,9 +86,10 @@ String dmy(DateTime t) => '${t.day} ${months3[t.month - 1]} ${t.year}';
 String ymd(DateTime t) => '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
 
 class CryReason {
+  final String key;
   final double score;
   final String te, en, why, todo, say;
-  CryReason(this.score, this.te, this.en, this.why, this.todo, this.say);
+  CryReason(this.key, this.score, this.te, this.en, this.why, this.todo, this.say);
 }
 
 /// Most likely reasons for crying, from her feed / nappy / sleep log, the hour and her age.
@@ -103,34 +104,81 @@ List<CryReason> cryReasons() {
   String ago(int m) => m >= 60 ? '${m ~/ 60} గంటల ${m % 60} నిమిషాల' : '$m నిమిషాల';
   final r = <CryReason>[];
   if (since == null) {
-    r.add(CryReason(60, 'ఆకలి', 'Hungry', 'No feed logged yet, so check hunger first.', 'Offer a feed. Newborns feed 8–12 times a day.', 'పాపకి ఆకలిగా ఉండవచ్చు. పాలు పట్టి చూడండి.'));
+    r.add(CryReason('hungry', 60, 'ఆకలి', 'Hungry', 'No feed logged yet, so check hunger first.', 'Offer a feed. Newborns feed 8–12 times a day.', 'పాపకి ఆకలిగా ఉండవచ్చు. పాలు పట్టి చూడండి.'));
   } else if (since >= interval - 30) {
-    r.add(CryReason((95 + ((since - interval) / 6).clamp(0, 20)).toDouble(), 'ఆకలి', 'Hungry', 'Last feed was ${since ~/ 60} h ${since % 60} min ago.', 'Feed her now. Early signs: sucking fists, turning to the breast.', 'పాపకి ఆకలిగా ఉంది. చివరిగా ${ago(since)} క్రితం పాలు పట్టారు. పాలు పట్టండి.'));
+    r.add(CryReason('hungry', (95 + ((since - interval) / 6).clamp(0, 20)).toDouble(), 'ఆకలి', 'Hungry', 'Last feed was ${since ~/ 60} h ${since % 60} min ago.', 'Feed her now. Early signs: sucking fists, turning to the breast.', 'పాపకి ఆకలిగా ఉంది. చివరిగా ${ago(since)} క్రితం పాలు పట్టారు. పాలు పట్టండి.'));
   } else if (since <= 45) {
-    r.add(CryReason(85, 'తేన్పు / గ్యాస్', 'Burp or wind', since < 2 ? 'She was just fed.' : 'She was fed $since min ago, so trapped air is likely.', 'Hold her upright on your shoulder and pat her back for 5–10 minutes. Gently cycle her legs.', '${since < 2 ? 'ఇప్పుడే పాలు తాగింది.' : 'పాలు తాగి $since నిమిషాలే అయింది.'} తేన్పు రావాలేమో. భుజం మీద వేసుకుని వీపు తట్టండి.'));
+    r.add(CryReason('burp', 85, 'తేన్పు / గ్యాస్', 'Burp or wind', since < 2 ? 'She was just fed.' : 'She was fed $since min ago, so trapped air is likely.', 'Hold her upright on your shoulder and pat her back for 5–10 minutes. Gently cycle her legs.', '${since < 2 ? 'ఇప్పుడే పాలు తాగింది.' : 'పాలు తాగి $since నిమిషాలే అయింది.'} తేన్పు రావాలేమో. భుజం మీద వేసుకుని వీపు తట్టండి.'));
   } else {
-    r.add(CryReason(45, 'ఆకలి', 'Hungry', 'Last feed was $since min ago. Some babies cluster-feed.', 'If she roots or sucks her fists, offer a feed early.', 'పాపకి మళ్ళీ ఆకలి వేసి ఉండవచ్చు.'));
+    r.add(CryReason('hungry', 45, 'ఆకలి', 'Hungry', 'Last feed was $since min ago. Some babies cluster-feed.', 'If she roots or sucks her fists, offer a feed early.', 'పాపకి మళ్ళీ ఆకలి వేసి ఉండవచ్చు.'));
   }
   if (nap == null || nap > 120) {
-    r.add(CryReason(nap == null ? 70 : 80, 'డైపర్', 'Wet or dirty nappy', nap == null ? 'Nappy changes are not logged yet.' : 'Last nappy change was ${nap ~/ 60} h ${nap % 60} min ago.', 'Check and change her nappy; keep the skin dry.', 'డైపర్ తడిగా ఉందేమో చూడండి.'));
+    r.add(CryReason('nappy', nap == null ? 70 : 80, 'డైపర్', 'Wet or dirty nappy', nap == null ? 'Nappy changes are not logged yet.' : 'Last nappy change was ${nap ~/ 60} h ${nap % 60} min ago.', 'Check and change her nappy; keep the skin dry.', 'డైపర్ తడిగా ఉందేమో చూడండి.'));
   } else {
-    r.add(CryReason(35, 'డైపర్', 'Wet or dirty nappy', 'Nappy was changed $nap min ago, but check anyway.', 'Check for a dirty nappy or a tight fold.', 'డైపర్ ఒకసారి చూడండి.'));
+    r.add(CryReason('nappy', 35, 'డైపర్', 'Wet or dirty nappy', 'Nappy was changed $nap min ago, but check anyway.', 'Check for a dirty nappy or a tight fold.', 'డైపర్ ఒకసారి చూడండి.'));
   }
   final awake = ls == null ? null : now.difference(ls).inMinutes;
   if (hr >= 21 || hr < 5 || (awake != null && awake > 90)) {
-    r.add(CryReason(72, 'నిద్ర', 'Tired', awake != null && awake > 90 ? 'She has been awake about ${awake ~/ 60} h ${awake % 60} min.' : 'It is night, and overtired babies cry harder.', 'Dim the lights, rock gently and play the jola paata.', 'పాపకి నిద్ర వస్తోంది. లైట్ తగ్గించి జోల పాడండి.'));
+    r.add(CryReason('sleep', 72, 'నిద్ర', 'Tired', awake != null && awake > 90 ? 'She has been awake about ${awake ~/ 60} h ${awake % 60} min.' : 'It is night, and overtired babies cry harder.', 'Dim the lights, rock gently and play the jola paata.', 'పాపకి నిద్ర వస్తోంది. లైట్ తగ్గించి జోల పాడండి.'));
   } else {
-    r.add(CryReason(50, 'నిద్ర', 'Tired', 'Newborns get tired after 45–90 minutes awake.', 'Look for yawning and staring; rock her in a quiet, dim room.', 'పాపకి నిద్ర వస్తుండవచ్చు.'));
+    r.add(CryReason('sleep', 50, 'నిద్ర', 'Tired', 'Newborns get tired after 45–90 minutes awake.', 'Look for yawning and staring; rock her in a quiet, dim room.', 'పాపకి నిద్ర వస్తుండవచ్చు.'));
   }
   if (hr >= 17 && hr <= 23 && ageDays != null && ageDays >= 10 && ageDays <= 120) {
-    r.add(CryReason(66, 'సాయంత్రం ఏడుపు', 'Evening fussiness or colic', 'Crying peaks between 2 weeks and 4 months, often in the evening.', 'Hold her skin-to-skin, walk with her, gentle shushing, warm bath. It passes by 3–4 months.', 'సాయంత్రం ఏడుపు ఈ వయసులో సాధారణం. ఎత్తుకుని నెమ్మదిగా నడవండి.'));
+    r.add(CryReason('colic', 66, 'సాయంత్రం ఏడుపు', 'Evening fussiness or colic', 'Crying peaks between 2 weeks and 4 months, often in the evening.', 'Hold her skin-to-skin, walk with her, gentle shushing, warm bath. It passes by 3–4 months.', 'సాయంత్రం ఏడుపు ఈ వయసులో సాధారణం. ఎత్తుకుని నెమ్మదిగా నడవండి.'));
   }
-  r.add(CryReason(48, 'ఎత్తుకోవాలని', 'Wants cuddles', 'Sometimes she just needs your warmth.', 'Pick her up, hold her close, talk and sing softly.', 'అమ్మ ఒడి కావాలేమో. ఎత్తుకోండి.'));
-  r.add(CryReason(42, 'వేడి / చలి', 'Too hot or cold', 'Babies can\'t control temperature well.', 'Feel the back of her neck: sweaty means remove a layer; cold means add one.', 'వేడిగా లేదా చలిగా ఉందేమో మెడ వెనుక తాకి చూడండి.'));
-  r.add(CryReason(30, 'ఎక్కువ శబ్దం', 'Overstimulated', 'Too many people, noise or light can overwhelm her.', 'Move to a quiet, dim room.', 'చుట్టూ చాలా శబ్దం ఉంది. నిశ్శబ్దమైన గదికి తీసుకెళ్ళండి.'));
+  r.add(CryReason('cuddle', 48, 'ఎత్తుకోవాలని', 'Wants cuddles', 'Sometimes she just needs your warmth.', 'Pick her up, hold her close, talk and sing softly.', 'అమ్మ ఒడి కావాలేమో. ఎత్తుకోండి.'));
+  r.add(CryReason('temp', 42, 'వేడి / చలి', 'Too hot or cold', 'Babies can\'t control temperature well.', 'Feel the back of her neck: sweaty means remove a layer; cold means add one.', 'వేడిగా లేదా చలిగా ఉందేమో మెడ వెనుక తాకి చూడండి.'));
+  r.add(CryReason('noise', 30, 'ఎక్కువ శబ్దం', 'Overstimulated', 'Too many people, noise or light can overwhelm her.', 'Move to a quiet, dim room.', 'చుట్టూ చాలా శబ్దం ఉంది. నిశ్శబ్దమైన గదికి తీసుకెళ్ళండి.'));
+  return personalise(r, since);
+}
+
+/// Learns from what really calmed her before: reasons that were right at a similar
+/// hour and a similar time since her last feed get a boost.
+List<CryReason> personalise(List<CryReason> r, int? since) {
+  final now = DateTime.now();
+  final done = Store.i.list('cries').where((c) => c['actual'] != null && c['actual'] != 'unknown').toList();
+  final w = <String, double>{}, n = <String, int>{};
+  var total = 0.0;
+  for (final c in done) {
+    final at = DateTime.fromMillisecondsSinceEpoch((c['at'] as num).toInt());
+    var dh = (at.hour - now.hour).abs();
+    if (dh > 12) dh = 24 - dh;
+    var wt = dh <= 2 ? 1.0 : 0.35;
+    final sf = (c['sinceFeed'] as num?)?.toInt();
+    if (since != null && sf != null) wt *= (since - sf).abs() <= 40 ? 1.6 : 0.6;
+    final age = now.difference(at).inDays;
+    wt *= age <= 7 ? 1.0 : age <= 30 ? 0.6 : 0.3; // babies change fast
+    final k = c['actual'].toString();
+    w[k] = (w[k] ?? 0) + wt;
+    n[k] = (n[k] ?? 0) + 1;
+    total += wt;
+  }
+  if (done.length >= 3 && total > 0) {
+    r = r.map((x) {
+      final share = (w[x.key] ?? 0) / total;
+      if (share < 0.15) return x;
+      return CryReason(x.key, x.score + 40 * share, x.te, x.en, '${x.why} Past cries like this one were usually ${x.en.toLowerCase()} (${n[x.key]} times).', x.todo, x.say);
+    }).toList();
+  }
   r.sort((a, b) => b.score.compareTo(a.score));
   return r;
 }
+
+/// What the parents can tell the app actually calmed her.
+const cryActuals = <List<String>>[
+  ['hungry', '🍼', 'పాలు', 'Fed her'],
+  ['burp', '🫧', 'తేన్పు', 'Burped'],
+  ['nappy', '🧷', 'డైపర్', 'Nappy change'],
+  ['sleep', '😴', 'నిద్ర', 'Slept'],
+  ['cuddle', '🤗', 'ఒడి', 'Cuddles'],
+  ['temp', '🌡️', 'వేడి/చలి', 'Hot or cold'],
+  ['noise', '🔇', 'శబ్దం', 'Too much noise'],
+  ['colic', '🌆', 'సాయంత్రం ఏడుపు', 'Colic, walked her'],
+  ['unwell', '🤒', 'బాగోలేదు', 'Unwell / pain'],
+  ['unknown', '❓', 'తెలియదు', 'Not sure'],
+];
+
+List<String> actualOf(String key) => cryActuals.firstWhere((a) => a[0] == key, orElse: () => cryActuals.last);
 
 const places = <String, List<double>>{
   'Nellore': [14.44, 79.99], 'Hyderabad': [17.385, 78.4867], 'Vijayawada': [16.5062, 80.648], 'Visakhapatnam': [17.6868, 83.2185],

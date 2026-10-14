@@ -7,6 +7,7 @@ import '../feed_alarm.dart';
 import '../store.dart';
 import '../voice.dart';
 import '../watch.dart';
+import 'cries.dart';
 import 'profile.dart';
 
 class HomePage extends StatefulWidget {
@@ -46,7 +47,9 @@ class _HomePageState extends State<HomePage> {
             Expanded(child: _quick(context, '🌤️', 'Woke up', () async { await s.addTime('sleeps'); _snack('Wake-up logged'); })),
           ]),
           const SizedBox(height: 8),
-          _bigButton(context, '😢', 'పాప ఏడుస్తోంది', 'Why is she crying? Tap and I\'ll tell you', [cs.tertiaryContainer, cs.primaryContainer], () => _crySheet(context)),
+          if (s.openCry != null) _openCryCard(context),
+          _bigButton(context, '😢', 'పాప ఏడుస్తోంది', 'Why is she crying? Tap — it saves the cry and tells the reason', [cs.tertiaryContainer, cs.primaryContainer], () => _crySheet(context)),
+          _bigButton(context, '📊', 'ఏడుపు డైరీ · Cry tracker', '${s.countCries()} cries today · see her pattern', [cs.secondaryContainer, cs.tertiaryContainer], () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CryHistoryPage()))),
           _bigButton(context, '🎧', 'నిద్ర కాపలా · Sleep watch', 'Listens for loud voices and her cry', [cs.secondaryContainer, cs.surface], () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WatchPage()))),
           _bigButton(context, '🤫', 'Shhh', 'Says "బేబీ బజ్జో ఉంది, అరవకండి" out loud', [cs.primaryContainer, cs.surface], () => _shh(context)),
           _lullabyCard(context),
@@ -246,8 +249,24 @@ class _HomePageState extends State<HomePage> {
     await Voice.i.shh();
   }
 
+  Widget _openCryCard(BuildContext context) {
+    final c = Store.i.openCry!;
+    final t = DateTime.fromMillisecondsSinceEpoch((c['at'] as num).toInt());
+    return Card(
+      color: Theme.of(context).colorScheme.primaryContainer,
+      child: ListTile(
+        leading: const Text('😢', style: TextStyle(fontSize: 28)),
+        title: Text('She cried at ${hm(t)}${c['src'] == 'auto' ? ' (Sleep watch heard it)' : ''}'),
+        subtitle: const Text('Is she calm now? Tap and tell what worked'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => askWhatCalmed(context, c['id'].toString()),
+      ),
+    );
+  }
+
   void _crySheet(BuildContext context) {
     final r = cryReasons(), top = r.first;
+    final idF = Store.i.addCry('manual', top.key);
     unawaited(Voice.i.say(top.say));
     showModalBottomSheet(
       context: context,
@@ -276,6 +295,17 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           const SizedBox(height: 6),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(padding: const EdgeInsets.all(14)),
+            icon: const Icon(Icons.check),
+            label: const Text('She is calm now · what worked?', style: TextStyle(fontSize: 16)),
+            onPressed: () async {
+              final id = await idF;
+              if (c.mounted) Navigator.pop(c);
+              if (context.mounted) await askWhatCalmed(context, id);
+            },
+          ),
+          const SizedBox(height: 10),
           const Text('Then check these', style: TextStyle(fontWeight: FontWeight.w700)),
           ...r.skip(1).take(5).map((x) => ExpansionTile(title: Text('${x.te} · ${x.en}'), children: [ListTile(title: Text(x.why), subtitle: Text('Try: ${x.todo}'))])),
           const SizedBox(height: 8),
