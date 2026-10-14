@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data.dart';
 import '../feed_alarm.dart';
@@ -10,14 +12,43 @@ import '../watch.dart';
 import 'cries.dart';
 import 'profile.dart';
 
+/// Soft baby palette — pastel in light mode, deep and gentle in dark mode.
+class _Pal {
+  final Color a, b, ink;
+  const _Pal(this.a, this.b, this.ink);
+}
+
+_Pal _pal(BuildContext c, String name) {
+  final dark = Theme.of(c).brightness == Brightness.dark;
+  const light = {
+    'rose': _Pal(Color(0xFFFFD9E6), Color(0xFFFFEBDD), Color(0xFF4A2338)),
+    'lilac': _Pal(Color(0xFFE9E0FF), Color(0xFFDDEEFF), Color(0xFF2E2A57)),
+    'mint': _Pal(Color(0xFFD5F5E8), Color(0xFFE8F8DC), Color(0xFF1F4537)),
+    'peach': _Pal(Color(0xFFFFE3D3), Color(0xFFFFF3D1), Color(0xFF4F3020)),
+    'sky': _Pal(Color(0xFFD8EEFF), Color(0xFFE5E3FF), Color(0xFF213A55)),
+    'coral': _Pal(Color(0xFFFF9EB5), Color(0xFFFFC4A3), Color(0xFF3F1022)),
+  };
+  const night = {
+    'rose': _Pal(Color(0xFF4A2338), Color(0xFF3A2430), Color(0xFFFFE3EE)),
+    'lilac': _Pal(Color(0xFF2E2A57), Color(0xFF253247), Color(0xFFEDE6FF)),
+    'mint': _Pal(Color(0xFF1F4537), Color(0xFF29402A), Color(0xFFDDF7EA)),
+    'peach': _Pal(Color(0xFF4F3020), Color(0xFF473A20), Color(0xFFFFEBDD)),
+    'sky': _Pal(Color(0xFF213A55), Color(0xFF2B2A52), Color(0xFFDDEEFF)),
+    'coral': _Pal(Color(0xFF7A2945), Color(0xFF6E3A28), Color(0xFFFFE8EE)),
+  };
+  return (dark ? night : light)[name]!;
+}
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   Timer? _t;
+  late final AnimationController _float = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat(reverse: true);
+
   @override
   void initState() {
     super.initState();
@@ -27,87 +58,178 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _t?.cancel();
+    _float.dispose();
     super.dispose();
   }
 
   void _snack(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), behavior: SnackBarBehavior.floating));
 
+  /// Gentle fade + rise for each section as the page opens.
+  Widget _enter(int i, Widget child) => TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: Duration(milliseconds: 450 + i * 90),
+        curve: Curves.easeOutCubic,
+        builder: (_, v, ch) => Opacity(opacity: v, child: Transform.translate(offset: Offset(0, 18 * (1 - v)), child: ch)),
+        child: child,
+      );
+
   @override
   Widget build(BuildContext context) {
-    final s = Store.i, cs = Theme.of(context).colorScheme;
+    final s = Store.i;
     return ListenableBuilder(
-      listenable: s,
+      listenable: Listenable.merge([s, SleepWatch.i]),
       builder: (context, _) => SafeArea(
-        child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 24), children: [
-          if (!s.hasProfile) _setupCard(context) else _hero(context),
-          _feedCard(context),
-          Row(children: [
-            Expanded(child: _quick(context, '🧷', 'Nappy changed', () async { await s.addTime('nappies'); _snack('Nappy change logged'); })),
-            const SizedBox(width: 10),
-            Expanded(child: _quick(context, '🌤️', 'Woke up', () async { await s.addTime('sleeps'); _snack('Wake-up logged'); })),
-          ]),
-          const SizedBox(height: 8),
+        child: ListView(padding: const EdgeInsets.fromLTRB(18, 10, 18, 28), children: [
+          _enter(0, _topBar(context)),
+          const SizedBox(height: 12),
+          _enter(1, s.hasProfile ? _hero(context) : _setupCard(context)),
+          const SizedBox(height: 16),
           const CryLiveCard(),
-          if (s.openCry != null && SleepWatch.i.ep == null) _openCryCard(context),
-          _bigButton(context, '😢', 'పాప ఏడుస్తోంది', 'Why is she crying? Tap — it saves the cry and tells the reason', [cs.tertiaryContainer, cs.primaryContainer], () => _crySheet(context)),
-          _bigButton(context, '📊', 'ఏడుపు డైరీ · Cry tracker', '${s.countCries()} cries today · see her pattern', [cs.secondaryContainer, cs.tertiaryContainer], () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CryHistoryPage()))),
-          _bigButton(context, '🎧', 'నిద్ర కాపలా · Sleep watch', 'Listens for loud voices and her cry', [cs.secondaryContainer, cs.surface], () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WatchPage()))),
-          _bigButton(context, '🤫', 'Shhh', 'Says "బేబీ బజ్జో ఉంది, అరవకండి" out loud', [cs.primaryContainer, cs.surface], () => _shh(context)),
-          _lullabyCard(context),
-          const SizedBox(height: 8),
-          Center(child: TextButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())), child: const Text('Edit her details · Backup'))),
+          if (s.openCry != null && SleepWatch.i.ep == null) _enter(2, _openCryCard(context)),
+          _enter(2, _feedCard(context)),
+          const SizedBox(height: 18),
+          _enter(3, _section(context, 'ఈ రోజు · Today')),
+          _enter(3, _todayRow(context)),
+          const SizedBox(height: 18),
+          _enter(4, _section(context, 'ఏడుపు · Crying')),
+          _enter(4, _cryBig(context)),
+          const SizedBox(height: 12),
+          _enter(5, Row(children: [
+            Expanded(child: _watchTile(context)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _tile(context, 'sky', '📊', 'Cry tracker', '${s.countCries()} today · pattern', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CryHistoryPage()))),
+            ),
+          ])),
+          const SizedBox(height: 22),
+          _enter(6, Center(child: Text('Made with 💖 for ${s.babyName}', style: TextStyle(color: Theme.of(context).colorScheme.outline, fontSize: 12)))),
         ]),
       ),
     );
   }
 
-
-  Widget _setupCard(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Welcome · స్వాగతం', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 6),
-            const Text('Add her name and birth details to start the age counter and vaccine dates.'),
-            const SizedBox(height: 12),
-            FilledButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())), child: const Text('Add her details')),
-          ]),
+  // ───────────── header ─────────────
+  Widget _topBar(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final h = DateTime.now().hour;
+    final greet = h < 12 ? ('శుభోదయం', 'Good morning ☀️') : h < 17 ? ('నమస్కారం', 'Good afternoon 🌤️') : h < 21 ? ('శుభ సాయంత్రం', 'Good evening 🌇') : ('శుభ రాత్రి', 'Good night 🌙');
+    return Row(children: [
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(greet.$1, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: cs.onSurface, height: 1.1)),
+          Text(greet.$2, style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant)),
+        ]),
+      ),
+      Material(
+        color: cs.primaryContainer,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())),
+          child: const Padding(padding: EdgeInsets.all(12), child: Text('👶', style: TextStyle(fontSize: 24))),
         ),
+      ),
+    ]);
+  }
+
+  Widget _section(BuildContext context, String t) => Padding(
+        padding: const EdgeInsets.only(left: 4, bottom: 10),
+        child: Text(t, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
       );
 
+  Widget _setupCard(BuildContext context) {
+    final p = _pal(context, 'rose');
+    return _gradBox(
+      p,
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Welcome · స్వాగతం', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: p.ink)),
+        const SizedBox(height: 6),
+        Text('Add her name and birth details to start the age counter and vaccine dates.', style: TextStyle(color: p.ink)),
+        const SizedBox(height: 12),
+        FilledButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())), child: const Text('Add her details')),
+      ]),
+    );
+  }
+
+  Widget _gradBox(_Pal p, Widget child, {double r = 30, EdgeInsets pad = const EdgeInsets.all(22)}) => Container(
+        padding: pad,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(r),
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [p.a, p.b]),
+          boxShadow: [BoxShadow(color: p.a.withValues(alpha: 0.45), blurRadius: 24, offset: const Offset(0, 10))],
+        ),
+        child: child,
+      );
+
+  // ───────────── hero ─────────────
   Widget _hero(BuildContext context) {
-    final s = Store.i, cs = Theme.of(context).colorScheme;
+    final s = Store.i;
     final b = s.birth;
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [cs.primaryContainer, cs.tertiaryContainer, cs.secondaryContainer]),
-      ),
-      child: Stack(children: [
-        const Positioned(right: 0, top: 0, child: Text('🌙', style: TextStyle(fontSize: 54))),
+    final p = _pal(context, 'rose');
+    Vax? next;
+    if (b != null) {
+      for (final v in vaccines) {
+        if (!s.vaxDone(v.key)) {
+          next = v;
+          break;
+        }
+      }
+    }
+    final listening = SleepWatch.i.on;
+    return _gradBox(
+      p,
+      Stack(clipBehavior: Clip.none, children: [
+        Positioned.fill(
+          child: AnimatedBuilder(
+          animation: _float,
+          builder: (_, __) {
+            final t = Curves.easeInOut.transform(_float.value);
+            return Stack(clipBehavior: Clip.none, children: [
+              Positioned(right: -4, top: -6 + 6 * t, child: const Text('🌙', style: TextStyle(fontSize: 52))),
+              Positioned(right: 62, top: 8 - 5 * t, child: Opacity(opacity: 0.85, child: Text('⭐', style: TextStyle(fontSize: 16 + 3 * t)))),
+              Positioned(right: 30, top: 70 + 4 * t, child: const Opacity(opacity: 0.7, child: Text('✨', style: TextStyle(fontSize: 18)))),
+              Positioned(right: 4, bottom: -8 - 4 * t, child: Opacity(opacity: 0.55, child: Transform.rotate(angle: math.sin(t * math.pi) * 0.08, child: const Text('☁️', style: TextStyle(fontSize: 40))))),
+            ]);
+          },
+        )),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(20)),
-            child: Text('Day ${dayNumber(b)}', style: TextStyle(color: cs.primary, fontWeight: FontWeight.w800)),
-          ),
-          const SizedBox(height: 10),
-          Text(s.babyName, style: const TextStyle(fontSize: 46, fontWeight: FontWeight.w900, height: 1.0)),
+          Wrap(spacing: 8, runSpacing: 6, children: [
+            _pill(p, 'Day ${dayNumber(b)}'),
+            if (listening) _pill(p, '🎧 Listening', dot: Colors.green),
+          ]),
+          const SizedBox(height: 14),
+          Text(s.babyName, style: TextStyle(fontSize: 48, fontWeight: FontWeight.w900, height: 1.0, color: p.ink, letterSpacing: -0.5)),
           const SizedBox(height: 6),
-          Text(ageText(b), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-          if (b != null) Text('Born ${dmy(b)}${(s.profile['birthTime'] ?? '').toString().isNotEmpty ? ', ${s.profile['birthTime']}' : ''}', style: TextStyle(color: cs.onSurfaceVariant)),
+          Text(ageText(b), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: p.ink)),
+          if (b != null) Text('Born ${dmy(b)}${(s.profile['birthTime'] ?? '').toString().isNotEmpty ? ' · ${s.profile['birthTime']}' : ''}', style: TextStyle(color: p.ink.withValues(alpha: 0.75))),
+          if (next != null && b != null) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.08 : 0.6), borderRadius: BorderRadius.circular(14)),
+              child: Text('💉 Next vaccine: ${next.label} · ${dmy(next.due(b))}', style: TextStyle(color: p.ink, fontWeight: FontWeight.w600, fontSize: 13)),
+            ),
+          ],
         ]),
       ]),
     );
   }
 
+  Widget _pill(_Pal p, String t, {Color? dot}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.65), borderRadius: BorderRadius.circular(20)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (dot != null) ...[Container(width: 8, height: 8, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)), const SizedBox(width: 6)],
+          Text(t, style: const TextStyle(color: Color(0xFF4A2338), fontWeight: FontWeight.w800, fontSize: 13)),
+        ]),
+      );
+
+  // ───────────── feeding ─────────────
   Widget _feedCard(BuildContext context) {
     final s = Store.i, cs = Theme.of(context).colorScheme;
     final interval = (s.settings['interval'] as num?)?.toInt() ?? 150;
     final last = s.last('feeds'), due = FeedAlarm.nextDue();
-    String big = '--:--', sub = 'Tap "Fed now" to start the timer';
+    String big = '--:--', sub = 'tap Fed now';
     double frac = 0;
     bool late = false;
     if (due != null && last != null) {
@@ -115,152 +237,219 @@ class _HomePageState extends State<HomePage> {
       frac = (1 - left / interval).clamp(0.0, 1.0);
       if (left > 0) {
         big = '${left ~/ 60}:${(left % 60).toString().padLeft(2, '0')}';
-        sub = 'next feed at ${hm(due)}';
+        sub = 'left · ${hm(due)}';
       } else {
         late = true;
         big = 'పాలు!';
-        sub = '${-left} min past feed time';
+        sub = '${-left} min late';
       }
     }
-    return Card(
-      color: late ? cs.primaryContainer : null,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
+    final p = _pal(context, late ? 'coral' : 'peach');
+    return _gradBox(
+      p,
+      pad: const EdgeInsets.all(18),
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text('🍼  పాల సమయం', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: p.ink)),
+          const Spacer(),
+          if (last != null)
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: p.ink, visualDensity: VisualDensity.compact),
+              onPressed: () async {
+                await s.removeLast('feeds');
+                await FeedAlarm.reschedule();
+              },
+              child: const Text('Undo'),
+            ),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          SizedBox(
+            width: 124,
+            height: 124,
+            child: Stack(alignment: Alignment.center, children: [
+              Container(width: 124, height: 124, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.06 : 0.55))),
+              SizedBox(
+                width: 112,
+                height: 112,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: frac),
+                  duration: const Duration(milliseconds: 900),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, v, __) => CircularProgressIndicator(value: v, strokeWidth: 11, strokeCap: StrokeCap.round, backgroundColor: p.ink.withValues(alpha: 0.08), color: late ? cs.primary : const Color(0xFF22A88A)),
+                ),
+              ),
+              Column(mainAxisSize: MainAxisSize.min, children: [
+                Text(big, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: late ? cs.primary : p.ink, height: 1.0)),
+                const SizedBox(height: 3),
+                Text(sub, textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: p.ink.withValues(alpha: 0.75))),
+              ]),
+            ]),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              _GlowButton(
+                label: 'పాలు పట్టాను',
+                sub: 'Fed now',
+                onTap: () async {
+                  HapticFeedback.mediumImpact();
+                  await s.addTime('feeds');
+                  await FeedAlarm.reschedule();
+                  unawaited(Voice.i.okayAmma());
+                  final d = FeedAlarm.nextDue();
+                  if (d != null) _snack('Feed logged 🍼  Next at ${hm(d)}');
+                },
+              ),
+              const SizedBox(height: 8),
+              Text(last == null ? 'No feeds yet today' : 'Last ${hm(last)} · ${s.countToday('feeds')} feeds today', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: p.ink.withValues(alpha: 0.8), fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(
+            child: SegmentedButton<int>(
+              style: SegmentedButton.styleFrom(foregroundColor: p.ink, selectedBackgroundColor: Colors.white.withValues(alpha: 0.8), selectedForegroundColor: const Color(0xFF4A2338), side: BorderSide(color: p.ink.withValues(alpha: 0.2)), visualDensity: VisualDensity.compact),
+              showSelectedIcon: false,
+              segments: const [ButtonSegment(value: 120, label: Text('2:00')), ButtonSegment(value: 150, label: Text('2:30')), ButtonSegment(value: 180, label: Text('3:00'))],
+              selected: {interval},
+              onSelectionChanged: (v) async {
+                await s.setSetting('interval', v.first);
+                await FeedAlarm.reschedule();
+              },
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(children: [
+            Switch(
+              value: s.settings['alarm'] != false,
+              onChanged: (v) async {
+                await s.setSetting('alarm', v);
+                await FeedAlarm.reschedule();
+              },
+            ),
+            Text('⏰ alarm', style: TextStyle(fontSize: 11, color: p.ink)),
+          ]),
+        ]),
+      ]),
+    );
+  }
+
+  // ───────────── today ─────────────
+  Widget _todayRow(BuildContext context) {
+    final s = Store.i;
+    String t(DateTime? d) => d == null ? '—' : hm(d);
+    return Row(children: [
+      Expanded(
+        child: _tile(context, 'mint', '🧷', 'Nappy', '${s.countToday('nappies')} today · ${t(s.last('nappies'))}', () async {
+          HapticFeedback.lightImpact();
+          await s.addTime('nappies');
+          _snack('Nappy change logged 🧷');
+        }, action: '＋ Changed'),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: _tile(context, 'lilac', '🌤️', 'Woke up', 'last ${t(s.last('sleeps'))}', () async {
+          HapticFeedback.lightImpact();
+          await s.addTime('sleeps');
+          _snack('Wake-up logged 🌤️');
+        }, action: '＋ Woke now'),
+      ),
+    ]);
+  }
+
+  Widget _tile(BuildContext context, String pal, String emoji, String title, String sub, VoidCallback onTap, {String? action}) {
+    final p = _pal(context, pal);
+    return _Pressable(
+      onTap: onTap,
+      child: Container(
+        height: 132,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(26),
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [p.a, p.b]),
+          boxShadow: [BoxShadow(color: p.a.withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 6))],
+        ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            const Expanded(child: Text('పాల సమయం · Feeding', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15))),
-            if (last != null)
-              TextButton(onPressed: () async { await s.removeLast('feeds'); await FeedAlarm.reschedule(); }, child: const Text('Undo last')),
+            Text(emoji, style: const TextStyle(fontSize: 30)),
+            const Spacer(),
+            if (action != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.7), borderRadius: BorderRadius.circular(12)),
+                child: Text(action, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF3A2A35))),
+              )
+            else
+              Icon(Icons.arrow_forward_rounded, color: p.ink.withValues(alpha: 0.6)),
           ]),
-          const SizedBox(height: 8),
-          Row(children: [
-            SizedBox(
-              width: 110,
-              height: 110,
-              child: Stack(alignment: Alignment.center, children: [
-                SizedBox(width: 110, height: 110, child: TweenAnimationBuilder<double>(tween: Tween(begin: 0, end: frac), duration: const Duration(milliseconds: 700), builder: (_, v, __) => CircularProgressIndicator(value: v, strokeWidth: 10, strokeCap: StrokeCap.round, backgroundColor: cs.surfaceContainerHighest, color: late ? cs.primary : Colors.teal))),
-                Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text(big, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: late ? cs.primary : null)),
-                  Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text(sub, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10))),
-                ]),
-              ]),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                FilledButton(
-                  style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                  onPressed: () async {
-                    await s.addTime('feeds');
-                    await FeedAlarm.reschedule();
-                    unawaited(Voice.i.okayAmma());
-                    final d = FeedAlarm.nextDue();
-                    if (d != null) _snack('Feed logged 🍼 Next at ${hm(d)}');
-                  },
-                  child: const Text('🍼 పాలు పట్టాను\nFed now', textAlign: TextAlign.center),
-                ),
-                const SizedBox(height: 6),
-                Text(last == null ? 'No feeds yet' : 'Last fed ${hm(last)} · ${s.countToday('feeds')} today', style: const TextStyle(fontSize: 12)),
-              ]),
-            ),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            const Text('Every '),
-            ...[120, 150, 180].map((m) => Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: ChoiceChip(label: Text('${m ~/ 60}:${(m % 60).toString().padLeft(2, '0')}'), selected: interval == m, onSelected: (_) async { await s.setSetting('interval', m); await FeedAlarm.reschedule(); }),
-                )),
-          ]),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: s.settings['alarm'] != false,
-            title: const Text('Baby-voice alarm (rings even when the app is closed)'),
-            onChanged: (v) async { await s.setSetting('alarm', v); await FeedAlarm.reschedule(); },
-          ),
+          const Spacer(),
+          Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: p.ink)),
+          Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: p.ink.withValues(alpha: 0.8))),
         ]),
       ),
     );
   }
 
-  Widget _quick(BuildContext context, String emoji, String label, VoidCallback onTap) {
-    final cs = Theme.of(context).colorScheme;
-    return Material(
-      color: cs.surface,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: Padding(padding: const EdgeInsets.symmetric(vertical: 14), child: Column(children: [Text(emoji, style: const TextStyle(fontSize: 26)), Text(label, style: const TextStyle(fontWeight: FontWeight.w600))])),
-      ),
-    );
+  Widget _watchTile(BuildContext context) {
+    final w = SleepWatch.i;
+    return _tile(context, 'mint', w.on ? '🎧' : '🔇', 'Sleep watch', w.on ? 'Listening now 🟢' : 'Off · tap to open', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WatchPage())));
   }
 
-  Widget _bigButton(BuildContext context, String emoji, String title, String sub, List<Color> colors, VoidCallback onTap) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Material(
-          borderRadius: BorderRadius.circular(22),
-          clipBehavior: Clip.antiAlias,
-          child: Ink(
-            decoration: BoxDecoration(gradient: LinearGradient(colors: colors)),
-            child: InkWell(
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(children: [
-                  Text(emoji, style: const TextStyle(fontSize: 34)),
-                  const SizedBox(width: 14),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)), Text(sub)])),
-                  const Icon(Icons.chevron_right),
-                ]),
-              ),
-            ),
+  // ───────────── crying ─────────────
+  Widget _cryBig(BuildContext context) {
+    final p = _pal(context, 'coral');
+    return _Pressable(
+      onTap: () => _crySheet(context),
+      child: _gradBox(
+        p,
+        pad: const EdgeInsets.fromLTRB(20, 18, 16, 18),
+        Row(children: [
+          Container(
+            width: 62,
+            height: 62,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.55)),
+            child: const Text('😢', style: TextStyle(fontSize: 34)),
           ),
-        ),
-      );
-
-  Widget _lullabyCard(BuildContext context) {
-    final on = Voice.i.musicOn;
-    return Card(
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(14),
-        leading: CircleAvatar(radius: 26, backgroundColor: Theme.of(context).colorScheme.primary, child: Icon(on ? Icons.stop : Icons.play_arrow, color: Colors.white, size: 30)),
-        title: const Text('జోల పాట · Lullaby', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-        subtitle: Text(on ? 'Playing ${Voice.i.nowPlaying}' : 'Music box. More songs in the Songs tab.'),
-        onTap: () async {
-          on ? await Voice.i.stopMusic() : await Voice.i.playMusicBox();
-          setState(() {});
-        },
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('పాప ఏడుస్తోంది', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: p.ink)),
+              Text('Tap — I\'ll tell you why and save it', style: TextStyle(color: p.ink.withValues(alpha: 0.85))),
+            ]),
+          ),
+          Icon(Icons.chevron_right_rounded, size: 30, color: p.ink),
+        ]),
       ),
     );
-  }
-
-  Future<void> _shh(BuildContext context) async {
-    showDialog(
-      context: context,
-      builder: (c) {
-        Future.delayed(const Duration(seconds: 5), () { if (Navigator.of(c).canPop()) Navigator.of(c).pop(); });
-        return const AlertDialog(
-          icon: Text('🤫', style: TextStyle(fontSize: 70)),
-          title: Text('బేబీ బజ్జో ఉంది,\nఅరవకండి', textAlign: TextAlign.center, style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900)),
-          content: Text('Baby is sleeping · please keep quiet', textAlign: TextAlign.center),
-        );
-      },
-    );
-    await Voice.i.shh();
   }
 
   Widget _openCryCard(BuildContext context) {
     final c = Store.i.openCry!;
     final t = DateTime.fromMillisecondsSinceEpoch((c['at'] as num).toInt());
-    return Card(
-      color: Theme.of(context).colorScheme.primaryContainer,
-      child: ListTile(
-        leading: const Text('😢', style: TextStyle(fontSize: 28)),
-        title: Text('She cried at ${hm(t)}${c['src'] == 'auto' ? ' (Sleep watch heard it)' : ''}'),
-        subtitle: const Text('Is she calm now? Tap and tell what worked'),
-        trailing: const Icon(Icons.chevron_right),
+    final p = _pal(context, 'sky');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: _Pressable(
         onTap: () => askWhatCalmed(context, c['id'].toString()),
+        child: _gradBox(
+          p,
+          r: 22,
+          pad: const EdgeInsets.all(14),
+          Row(children: [
+            const Text('🤔', style: TextStyle(fontSize: 28)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('She cried at ${hm(t)}${c['src'] == 'auto' ? ' · Sleep watch' : ''}', style: TextStyle(fontWeight: FontWeight.w800, color: p.ink)),
+                Text('Calm now? Tap and tell what worked', style: TextStyle(fontSize: 12, color: p.ink.withValues(alpha: 0.8))),
+              ]),
+            ),
+            Icon(Icons.chevron_right_rounded, color: p.ink),
+          ]),
+        ),
       ),
     );
   }
@@ -322,4 +511,48 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+}
+
+/// Shrinks a little when pressed — feels soft and springy.
+class _Pressable extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+  const _Pressable({required this.child, required this.onTap});
+  @override
+  State<_Pressable> createState() => _PressableState();
+}
+
+class _PressableState extends State<_Pressable> {
+  bool down = false;
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTapDown: (_) => setState(() => down = true),
+        onTapCancel: () => setState(() => down = false),
+        onTapUp: (_) => setState(() => down = false),
+        onTap: widget.onTap,
+        child: AnimatedScale(scale: down ? 0.96 : 1, duration: const Duration(milliseconds: 120), curve: Curves.easeOut, child: widget.child),
+      );
+}
+
+/// The big pink "Fed now" button.
+class _GlowButton extends StatelessWidget {
+  final String label, sub;
+  final VoidCallback onTap;
+  const _GlowButton({required this.label, required this.sub, required this.onTap});
+  @override
+  Widget build(BuildContext context) => _Pressable(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            gradient: const LinearGradient(colors: [Color(0xFFF2668B), Color(0xFFFF8E72)]),
+            boxShadow: const [BoxShadow(color: Color(0x66F2668B), blurRadius: 16, offset: Offset(0, 6))],
+          ),
+          child: Column(children: [
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900)),
+            Text(sub, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+      );
 }
