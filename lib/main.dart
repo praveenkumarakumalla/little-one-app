@@ -4,6 +4,7 @@ import 'package:alarm/alarm.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'chat.dart';
 import 'feed_alarm.dart';
 import 'pages/health.dart';
 import 'pages/home.dart';
@@ -20,6 +21,9 @@ Future<void> main() async {
   await Store.i.load();
   await Alarm.init();
   await Voice.i.init();
+  try {
+    await Chat.i.init();
+  } catch (_) {}
   runApp(const LittleOneApp());
 }
 
@@ -134,18 +138,24 @@ class _ShellState extends State<Shell> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [const HomePage(), const MemoriesPage(), const SongsPage(), const HealthPage(), const JatakamPage()];
+    final pages = [const HomePage(), const MemoriesPage(), const ChatPage(), const SongsPage(), const HealthPage(), const JatakamPage()];
     return Scaffold(
       body: AnimatedSwitcher(duration: const Duration(milliseconds: 250), child: KeyedSubtree(key: ValueKey(tab), child: pages[tab])),
       bottomNavigationBar: NavigationBar(
         selectedIndex: tab,
         onDestinationSelected: (i) => setState(() => tab = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.photo_library_outlined), selectedIcon: Icon(Icons.photo_library), label: 'Memories'),
-          NavigationDestination(icon: Icon(Icons.music_note_outlined), selectedIcon: Icon(Icons.music_note), label: 'Songs'),
-          NavigationDestination(icon: Icon(Icons.favorite_outline), selectedIcon: Icon(Icons.favorite), label: 'Health'),
-          NavigationDestination(icon: Icon(Icons.nightlight_outlined), selectedIcon: Icon(Icons.nightlight), label: 'Jatakam'),
+        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+        destinations: [
+          const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+          const NavigationDestination(icon: Icon(Icons.photo_library_outlined), selectedIcon: Icon(Icons.photo_library), label: 'Memories'),
+          NavigationDestination(
+            icon: ListenableBuilder(listenable: Chat.i, builder: (_, __) => Badge(isLabelVisible: Chat.i.unread > 0, label: Text('${Chat.i.unread}'), child: const Icon(Icons.chat_bubble_outline))),
+            selectedIcon: const Icon(Icons.chat_bubble),
+            label: 'Chat',
+          ),
+          const NavigationDestination(icon: Icon(Icons.music_note_outlined), selectedIcon: Icon(Icons.music_note), label: 'Songs'),
+          const NavigationDestination(icon: Icon(Icons.favorite_outline), selectedIcon: Icon(Icons.favorite), label: 'Health'),
+          const NavigationDestination(icon: Icon(Icons.nightlight_outlined), selectedIcon: Icon(Icons.nightlight), label: 'Jatakam'),
         ],
       ),
     );
