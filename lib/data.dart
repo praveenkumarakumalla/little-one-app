@@ -22,6 +22,30 @@ const vaccines = <Vax>[
   Vax('m18', '18–19 months', ['Hepatitis A 2', 'Varicella 2'], months: 18),
 ];
 
+/// What each vaccine protects against and how it is given.
+const vaxInfo = <String, List<String>>{
+  'BCG': ['క్షయ (TB)', 'Tuberculosis', 'Injection, left upper arm. A small bump or scar forms in 4–6 weeks; that is normal.'],
+  'OPV': ['పోలియో', 'Polio', 'Drops by mouth.'],
+  'IPV': ['పోలియో', 'Polio', 'Injection in the thigh or arm.'],
+  'Hepatitis B': ['హెపటైటిస్ B (కాలేయం)', 'Hepatitis B liver infection', 'Injection in the thigh.'],
+  'DTP': ['డిఫ్తీరియా, ధనుర్వాతం, కోరింత దగ్గు', 'Diphtheria, tetanus, whooping cough', 'Injection in the thigh. Mild fever and soreness for a day are common.'],
+  'Hib': ['మెదడువాపు, న్యుమోనియా', 'Hib meningitis and pneumonia', 'Injection, often combined with DTP.'],
+  'Rotavirus': ['తీవ్రమైన విరేచనాలు', 'Severe diarrhoea', 'Drops by mouth.'],
+  'PCV': ['న్యుమోనియా, చెవి ఇన్ఫెక్షన్లు', 'Pneumonia, ear infections, meningitis', 'Injection in the thigh.'],
+  'Influenza': ['ఫ్లూ జ్వరం', 'Flu', 'Injection. Two doses a month apart the first year, then yearly.'],
+  'Typhoid conjugate': ['టైఫాయిడ్', 'Typhoid fever', 'Injection.'],
+  'MMR': ['తట్టు, గవదబిళ్ళలు, రుబెల్లా', 'Measles, mumps, rubella', 'Injection. A mild rash or fever a week later can happen.'],
+  'Hepatitis A': ['హెపటైటిస్ A (కామెర్లు)', 'Hepatitis A (jaundice)', 'Injection.'],
+  'Varicella': ['ఆటలమ్మ / చికెన్ పాక్స్', 'Chickenpox', 'Injection.'],
+};
+
+List<String>? infoFor(String item) {
+  for (final k in vaxInfo.keys) {
+    if (item.startsWith(k)) return vaxInfo[k];
+  }
+  return null;
+}
+
 const rasiTe = ['మేషం', 'వృషభం', 'మిథునం', 'కర్కాటకం', 'సింహం', 'కన్య', 'తుల', 'వృశ్చికం', 'ధనుస్సు', 'మకరం', 'కుంభం', 'మీనం'];
 const nakTe = ['అశ్విని', 'భరణి', 'కృత్తిక', 'రోహిణి', 'మృగశిర', 'ఆరుద్ర', 'పునర్వసు', 'పుష్యమి', 'ఆశ్లేష', 'మఖ', 'పుబ్బ', 'ఉత్తర', 'హస్త', 'చిత్త', 'స్వాతి', 'విశాఖ', 'అనూరాధ', 'జ్యేష్ఠ', 'మూల', 'పూర్వాషాఢ', 'ఉత్తరాషాఢ', 'శ్రవణం', 'ధనిష్ఠ', 'శతభిషం', 'పూర్వాభాద్ర', 'ఉత్తరాభాద్ర', 'రేవతి'];
 const planets = [

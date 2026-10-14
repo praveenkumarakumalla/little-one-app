@@ -24,6 +24,9 @@ class Store extends ChangeNotifier {
       }
     }
     d.putIfAbsent('profile', () => <String, dynamic>{});
+    if ((d['profile'] as Map).isEmpty) {
+      d['profile'] = <String, dynamic>{'name': 'Chinnari', 'birthDate': '2026-10-06', 'birthTime': '18:18', 'place': 'Nellore'};
+    }
     d.putIfAbsent('feeds', () => <dynamic>[]);
     d.putIfAbsent('nappies', () => <dynamic>[]);
     d.putIfAbsent('sleeps', () => <dynamic>[]);

@@ -28,29 +28,80 @@ class _Vaccines extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final b = Store.i.birth;
-    if (b == null) return const Center(child: Text('Add her date of birth on Home first.'));
     final now = DateTime.now(), cs = Theme.of(context).colorScheme;
+    final doneCount = vaccines.where((v) => Store.i.vaxDone(v.key)).length;
+    Vax? next;
+    for (final v in vaccines) {
+      if (!Store.i.vaxDone(v.key)) { next = v; break; }
+    }
     return ListView(padding: const EdgeInsets.all(12), children: [
+      Card(
+        color: cs.primaryContainer,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('టీకాల పట్టిక · Vaccine schedule', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 4),
+            Text('$doneCount of ${vaccines.length} visits done${next != null && b != null ? ' · Next: ${next.label} on ${dmy(next.due(b))}' : ''}'),
+            if (b == null) const Padding(padding: EdgeInsets.only(top: 6), child: Text('Add her date of birth on Home to see exact dates.', style: TextStyle(fontWeight: FontWeight.w700))),
+          ]),
+        ),
+      ),
       ...vaccines.map((v) {
-        final due = v.due(b), done = Store.i.vaxDone(v.key), diff = DateTime(due.year, due.month, due.day).difference(DateTime(now.year, now.month, now.day)).inDays;
-        final (String label, Color col) = done
-            ? ('Done', Colors.teal)
-            : diff < 0
-                ? ('${-diff} days late', cs.error)
-                : diff <= 7
-                    ? (diff == 0 ? 'Today' : 'In $diff days', Colors.orange)
-                    : ('In ${diff < 60 ? '$diff days' : '${(diff / 30.44).round()} months'}', cs.outline);
+        final done = Store.i.vaxDone(v.key);
+        String label = v.label;
+        Color col = cs.outline;
+        DateTime? due;
+        if (b != null) {
+          due = v.due(b);
+          final diff = DateTime(due.year, due.month, due.day).difference(DateTime(now.year, now.month, now.day)).inDays;
+          if (done) { label = 'Done'; col = Colors.teal; }
+          else if (diff < 0) { label = '${-diff} days late'; col = cs.error; }
+          else if (diff <= 7) { label = diff == 0 ? 'Today' : 'In $diff days'; col = Colors.orange; }
+          else { label = 'In ${diff < 60 ? '$diff days' : '${(diff / 30.44).round()} months'}'; }
+        } else if (done) { label = 'Done'; col = Colors.teal; }
         return Card(
-          child: CheckboxListTile(
-            value: done,
-            onChanged: (x) => Store.i.toggleVax(v.key, x == true),
-            title: Text('${v.label} · ${dmy(due)}', style: const TextStyle(fontWeight: FontWeight.w700)),
-            subtitle: Text(v.items.join(', ')),
-            secondary: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: col.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)), child: Text(label, style: TextStyle(color: col, fontWeight: FontWeight.w700, fontSize: 12))),
+          child: ExpansionTile(
+            shape: const RoundedRectangleBorder(side: BorderSide.none),
+            leading: Checkbox(value: done, onChanged: (x) => Store.i.toggleVax(v.key, x == true)),
+            title: Text('${v.label}${due != null ? ' · ${dmy(due)}' : ''}', style: const TextStyle(fontWeight: FontWeight.w800)),
+            subtitle: Text(v.items.join(', '), style: const TextStyle(fontSize: 12)),
+            trailing: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: col.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)), child: Text(label, style: TextStyle(color: col, fontWeight: FontWeight.w700, fontSize: 12))),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+            children: v.items.map((item) {
+              final info = infoFor(item);
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('💉 '),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(item, style: const TextStyle(fontWeight: FontWeight.w800)),
+                    if (info != null) Text('${info[0]} · ${info[1]}', style: TextStyle(color: cs.primary, fontWeight: FontWeight.w600)),
+                    if (info != null) Text(info[2], style: const TextStyle(fontSize: 12)),
+                  ])),
+                ]),
+              );
+            }).toList(),
           ),
         );
       }),
-      const Padding(padding: EdgeInsets.all(8), child: Text('Based on the Indian Academy of Pediatrics schedule. Follow your pediatrician\'s card if it differs.', style: TextStyle(fontSize: 12))),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+            Text('After a vaccine · టీకా తర్వాత', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+            SizedBox(height: 6),
+            Text('• Mild fever, crankiness and a sore spot for 1–2 days are normal.'),
+            Text('• Breastfeed more often and keep her comfortable. Hold her close.'),
+            Text('• Don\'t rub, massage or put hot cloth or oil on the injection spot.'),
+            Text('• Give fever medicine only as her pediatrician advises, with the dose they write.'),
+            Text('• See the doctor quickly if fever is 38°C or more in a baby under 3 months, crying lasts over 3 hours, she is very sleepy or floppy, or the spot becomes very swollen and red.'),
+            SizedBox(height: 8),
+            Text('Based on the Indian Academy of Pediatrics schedule. Your pediatrician may adjust dates or brands; follow their vaccine card first. Tick each visit when it is done.', style: TextStyle(fontSize: 12)),
+          ]),
+        ),
+      ),
     ]);
   }
 }
