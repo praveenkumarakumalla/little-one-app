@@ -42,7 +42,24 @@ jobs:
         run: flutter analyze --no-fatal-infos --no-fatal-warnings lib
 
       - name: Build APK
-        run: flutter build apk --release
+        run: |
+          set -o pipefail
+          flutter build apk --release 2>&1 | tee build.log
+
+      - name: Report build errors
+        if: failure()
+        run: |
+          f=build.log; [ -f "$f" ] || exit 0
+          grep -n -i -E "error|what went wrong|exception|failed|unresolved|not found|cannot|incompatible|requires" "$f" | grep -v -i "warning" | head -60 > errs.txt || true
+          tail -n 60 "$f" >> errs.txt
+          python3 - <<'PY'
+          import re
+          t=open("errs.txt",encoding="utf-8",errors="replace").read()
+          chunks=[t[i:i+3500] for i in range(0,len(t),3500)][:9]
+          for i,c in enumerate(chunks):
+              c=c.replace("%","%25").replace("\r","").replace("\n","%0A")
+              print(f"::error title=build-log-{i}::{c}")
+          PY
 
       - name: Rename APK
         run: cp build/app/outputs/flutter-apk/app-release.apk LittleOne.apk
