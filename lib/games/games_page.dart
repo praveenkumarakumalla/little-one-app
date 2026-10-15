@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 import '../clay.dart';
 import 'chess.dart';
 import 'common.dart';
-import 'ludo.dart';
-import 'snakes.dart';
+import 'game3d.dart';
 import 'uno.dart';
 
 /// Family games: Chess, Ludo, Snakes & Ladders and UNO.
+Widget _g3(String game, List<GPlayer> ps) => Game3DPage(cfg: {
+      'game': game,
+      'players': [for (final p in ps) {'name': p.name, 'bot': p.bot}],
+    });
+
 class GamesPage extends StatelessWidget {
   const GamesPage({super.key});
 
@@ -20,9 +24,9 @@ class GamesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final games = [
-      ('♛', 'Chess 3D', '3 themes · vs computer or each other', const Color(0xFFFFD9A8), const Color(0xFFFFB7C9), () => openChess(context)),
-      ('🎲', 'Ludo', '2–4 players · pass the phone', const Color(0xFFFFB3B3), const Color(0xFFFFE08A), () => _start(context, '🎲 Ludo — who is playing?', (p) => LudoPage(players: p))),
-      ('🐍', 'Snakes & Ladders', '3D board · 2–4 players', const Color(0xFFB8F0C8), const Color(0xFFA8E0FF), () => _start(context, '🐍 Snakes & Ladders', (p) => SnakesPage(players: p))),
+      ('♛', 'Chess 3D', 'Real 3D board · 3 themes · vs computer', const Color(0xFFFFD9A8), const Color(0xFFFFB7C9), () => openChess(context)),
+      ('🎲', 'Ludo', '3D board · dice · 2–4 players', const Color(0xFFFFB3B3), const Color(0xFFFFE08A), () => _start(context, '🎲 Ludo — who is playing?', (p) => _g3('ludo', p))),
+      ('🐍', 'Snakes & Ladders', '3D snakes & ladders · 2–4 players', const Color(0xFFB8F0C8), const Color(0xFFA8E0FF), () => _start(context, '🐍 Snakes & Ladders', (p) => _g3('snakes', p))),
       ('🃏', 'UNO', '2–4 players · computer or family', const Color(0xFFD8C4FF), const Color(0xFFFFC4E8), () => _start(context, '🃏 UNO — who is playing?', (p) => UnoPage(players: p))),
     ];
     return Scaffold(

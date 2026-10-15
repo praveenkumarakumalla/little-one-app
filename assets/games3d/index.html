@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #2a1d17; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; touch-action: none; }
+  #stage { position: fixed; inset: 0; }
+  #vig { position: fixed; inset: 0; pointer-events: none; z-index: 1; background: radial-gradient(ellipse at 50% 55%, transparent 45%, rgba(0,0,0,.45) 100%); }
+  #stage canvas { display: block; touch-action: none; }
+  .hud { position: fixed; left: 0; right: 0; pointer-events: none; z-index: 5; }
+  #top { top: 0; padding: calc(env(safe-area-inset-top) + 10px) 12px 0; }
+  .bar { display: flex; align-items: center; gap: 8px; }
+  .btn { pointer-events: auto; border: none; border-radius: 16px; min-width: 44px; height: 44px; padding: 0 12px; font-size: 20px; font-weight: 800; color: #3a2440;
+    background: linear-gradient(#fff, #f3e7ef); box-shadow: 0 5px 0 #c9b2c2, 0 8px 16px rgba(0,0,0,.35); transition: transform .08s, box-shadow .08s; }
+  .btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #c9b2c2, 0 3px 8px rgba(0,0,0,.35); }
+  .title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; font-size: 19px; font-weight: 900; text-shadow: 0 2px 6px rgba(0,0,0,.5); }
+  #players { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 10px; }
+  .pl { padding: 6px 12px 6px 8px; border-radius: 18px; background: rgba(255,255,255,.9); color: #2b2240; font-weight: 800; font-size: 13px; display: flex; align-items: center; gap: 6px;
+    box-shadow: 0 3px 0 rgba(0,0,0,.18); transition: all .25s; }
+  .pl .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--c); border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.2); }
+  .pl.on { background: var(--c); color: #fff; transform: scale(1.08); box-shadow: 0 0 0 3px #fff, 0 0 18px var(--c); }
+  .pl b { font-weight: 900; }
+  #bottom { bottom: 0; padding: 0 14px calc(env(safe-area-inset-bottom) + 16px); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  #status { color: #fff; font-size: 17px; font-weight: 900; text-align: center; text-shadow: 0 2px 6px rgba(0,0,0,.7); min-height: 22px; padding: 6px 14px; border-radius: 14px; background: rgba(0,0,0,.28); }
+  #actions { display: flex; gap: 10px; pointer-events: auto; }
+  #actions .btn { font-size: 15px; white-space: nowrap; height: 42px; }
+  #roll { pointer-events: auto; font-size: 22px; padding: 0 30px; height: 60px; border-radius: 22px; color: #fff; background: linear-gradient(#ff8fb3, #e8437a); box-shadow: 0 6px 0 #a3204f, 0 10px 22px rgba(0,0,0,.4); display: none; }
+  #roll:active { transform: translateY(5px); box-shadow: 0 1px 0 #a3204f; }
+  #roll.off { filter: grayscale(.8) brightness(.8); }
+  #toast { position: fixed; left: 50%; top: 38%; transform: translate(-50%, -50%) scale(.6); opacity: 0; transition: all .25s cubic-bezier(.2,1.6,.4,1); z-index: 8;
+    color: #fff; font-size: 30px; font-weight: 900; text-align: center; text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 22px rgba(0,0,0,.6); pointer-events: none; white-space: nowrap; }
+  #toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #win { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 10; background: rgba(20,10,30,.45); }
+  #win.show { display: flex; animation: fade .3s; }
+  .card { background: linear-gradient(#fff, #ffe9f2); border-radius: 30px; padding: 26px 26px 20px; text-align: center; box-shadow: 0 10px 0 #d3a6bd, 0 20px 40px rgba(0,0,0,.4); min-width: 260px; animation: pop .45s cubic-bezier(.2,1.6,.4,1); }
+  .card .cup { font-size: 70px; }
+  #winTitle { font-size: 26px; font-weight: 900; color: #3a2440; margin: 6px 0; }
+  #winSub { color: #6a4a6a; font-weight: 700; margin-bottom: 16px; }
+  .card .row { display: flex; gap: 10px; justify-content: center; }
+  #promo { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 9; background: rgba(0,0,0,.35); }
+  #promo.show { display: flex; }
+  #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 22px; font-weight: 800; z-index: 20; background: #2a1d17; }
+  @keyframes pop { from { transform: scale(.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes fade { from { opacity: 0; } }
+</style>
+</head>
+<body>
+<div id="stage"></div><div id="vig"></div>
+<div id="top" class="hud">
+  <div class="bar">
+    <button class="btn" id="back">←</button>
+    <div class="title" id="title">Game</div>
+    <button class="btn" id="sound">🔊</button>
+    <button class="btn" id="cam">🎥</button>
+  </div>
+  <div id="players"></div>
+</div>
+<div id="bottom" class="hud">
+  <div id="status"></div>
+  <div id="actions"></div>
+  <button class="btn" id="roll">🎲 Roll</button>
+</div>
+<div id="toast"></div>
+<div id="promo"><div class="card"><div id="winTitle2" style="font-size:22px;font-weight:900;color:#3a2440;margin-bottom:12px">Promote to</div><div class="row" id="promoRow"></div></div></div>
+<div id="win"><div class="card"><div class="cup">🏆</div><div id="winTitle"></div><div id="winSub"></div>
+  <div class="row"><button class="btn" id="exitWin">Exit</button><button class="btn" id="again" style="background:linear-gradient(#ff8fb3,#e8437a);color:#fff;box-shadow:0 5px 0 #a3204f">Play again</button></div></div></div>
+<div id="loading">Setting up the board… 🎲</div>
+<script src="three.min.js"></script>
+<script src="engine.js"></script>
+<script src="pieces.js"></script>
+<script src="chess.js"></script>
+<script src="ludo.js"></script>
+<script src="snakes.js"></script>
+</body>
+</html>

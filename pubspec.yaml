@@ -31,6 +31,7 @@ dependencies:
   android_alarm_manager_plus: ^5.1.2
   timezone: ">=0.10.0 <0.11.0"
   youtube_player_iframe: ">=5.2.0 <7.0.0"
+  webview_flutter: ">=4.4.0 <5.0.0"
 
 dev_dependencies:
   flutter_test:
@@ -57,3 +58,5 @@ flutter:
     - assets/audio/alarm.wav
     - assets/farts/
     - assets/voice/
+    - assets/games3d/
+    - assets/sfx/

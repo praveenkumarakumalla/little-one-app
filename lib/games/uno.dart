@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'common.dart';
+import 'sfx.dart';
 
 /// UNO-style card game for 2–4 players (pass the phone, or play the computer).
 class UnoPage extends StatefulWidget {
@@ -84,6 +85,7 @@ class _UnoPageState extends State<UnoPage> {
 
   Future<void> _startTurn({bool first = false}) async {
     drewThisTurn = false;
+    if (!cur.bot && !first) Sfx.play('turn', volume: 0.5);
     if (cur.bot) {
       busy = true;
       await Future.delayed(const Duration(milliseconds: 1000));
@@ -104,6 +106,7 @@ class _UnoPageState extends State<UnoPage> {
     if (options.isEmpty) {
       final c = _draw();
       h.add(c);
+      Sfx.play('draw');
       setState(() => msg = '${cur.name} draws a card');
       if (_playable(c)) {
         Future.delayed(const Duration(milliseconds: 700), () {
@@ -146,11 +149,13 @@ class _UnoPageState extends State<UnoPage> {
       if (col < 0) return;
     }
     h.removeAt(i);
+    Sfx.play(c.value == 12 || c.value == 14 ? 'plus' : c.value == 10 || c.value == 11 ? 'skip' : 'flip');
     pile.add(c);
     color = col;
     final who = cur.name;
     if (h.isEmpty) {
       setState(() {});
+      Sfx.play('win');
       await winDialog(context, '$who wins UNO! 🎉', again: _reset);
       return;
     }
@@ -176,6 +181,7 @@ class _UnoPageState extends State<UnoPage> {
       extra = ' — ${widget.players[victim].name} draws $k!';
     }
     if (c.wild) extra += ' (${_uNames[color]})';
+    if (h.length == 1) Future.delayed(const Duration(milliseconds: 300), () => Sfx.play('uno'));
     setState(() => msg = '$who played ${c.label}$extra${h.length == 1 ? '  🔔 UNO!' : ''}');
     _advance(skip: skip);
   }
@@ -212,6 +218,7 @@ class _UnoPageState extends State<UnoPage> {
     }
     final c = _draw();
     hands[turn].add(c);
+    Sfx.play('draw');
     drewThisTurn = true;
     setState(() => msg = _playable(c) ? 'You drew a playable card — play it or tap Pass' : 'No luck — tap Pass');
   }

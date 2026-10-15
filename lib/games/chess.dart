@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../clay.dart';
 import '../store.dart';
 import 'common.dart';
+import 'game3d.dart';
 
 // ───────────────────────── engine ─────────────────────────
 // board[r*8+c], r = 0 is the top (black's back rank). + white, − black.
@@ -591,5 +592,17 @@ Future<void> openChess(BuildContext context) async {
     ),
   );
   if (go != true || !context.mounted) return;
-  await Navigator.push(context, MaterialPageRoute(builder: (_) => ChessPage(vsComputer: vs, level: level, whiteName: w.text.trim().isEmpty ? 'White' : w.text.trim(), blackName: bl.text.trim().isEmpty ? 'Black' : bl.text.trim())));
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => Game3DPage(cfg: {
+        'game': 'chess',
+        'vsComputer': vs,
+        'level': level,
+        'white': w.text.trim().isEmpty ? 'White' : w.text.trim(),
+        'black': bl.text.trim().isEmpty ? 'Black' : bl.text.trim(),
+        'theme': (Store.i.settings['chessTheme'] as int?) ?? 0,
+      }),
+    ),
+  );
 }
