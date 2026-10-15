@@ -89,6 +89,121 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
       unawaited(ChatNotify.start());
     }
     _resendTimer = Timer.periodic(const Duration(minutes: 2), (_) => _resend());
+    Store.onAdd = (k, item) {
+      if (k == 'memories' && item['remote'] != true) unawaited(shareMemory(item));
+    };
+    Store.onRemove = (k, id) {
+      if (k == 'memories' && paired) unawaited(_publish({'t': 'memdel', 'ref': id, 'name': myName}));
+    };
+  }
+
+  // ───────────────────────── shared family gallery ─────────────────────────
+  List<Map<String, dynamic>> get memOut => (Store.i.d['memOut'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+  Future<void> _saveMemOut(List<Map<String, dynamic>> l) async {
+    Store.i.d['memOut'] = l.length > 2000 ? l.sublist(l.length - 2000) : l;
+    await Store.i.save();
+  }
+
+  /// Sends one memory (photo / video) to every phone in the family group.
+  Future<String?> shareMemory(Map<String, dynamic> m) async {
+    if (!paired || m['path'] == null) return 'not paired';
+    final f = File(m['path'].toString());
+    if (!f.existsSync()) return 'missing';
+    final size = await f.length();
+    if (size > maxFile) return 'too big';
+    final meta = <String, dynamic>{
+      't': 'mem',
+      'id': m['id'],
+      'name': myName,
+      'at': DateTime.now().millisecondsSinceEpoch,
+      'caption': m['caption'] ?? '',
+      'tag': m['tag'] ?? '',
+      'date': m['date'] ?? ymd(DateTime.now()),
+      'video': m['video'] == true,
+      if (m['filter'] != null) 'filter': m['filter'],
+      'fname': f.path.split('/').last,
+      'size': size,
+    };
+    final ok = await _publishFile(meta, await f.readAsBytes());
+    final l = memOut.where((x) => x['id'] != m['id']).toList()
+      ..add({'id': m['id'], 'path': f.path, 'meta': meta, 'at': meta['at'], 'sent': ok, 'pubAt': DateTime.now().millisecondsSinceEpoch, 'gotBy': <String>[]});
+    await _saveMemOut(l);
+    return null;
+  }
+
+  /// Shares every memory on this phone that the family doesn't have yet.
+  Future<int> shareAllMemories() async {
+    final sent = memOut.map((x) => x['id']).toSet();
+    var n = 0;
+    for (final m in Store.i.list('memories')) {
+      if (m['remote'] == true || sent.contains(m['id'])) continue;
+      if (await shareMemory(m) == null) n++;
+    }
+    return n;
+  }
+
+  Future<void> _gotMemory(Map<String, dynamic> m, Map<String, dynamic>? att) async {
+    final id = m['id'].toString();
+    _ack(id);
+    final list = Store.i.list('memories');
+    final i = list.indexWhere((x) => x['id'] == id);
+    if (i >= 0) {
+      if (list[i]['path'] != null || att == null) return;
+      list[i] = {...list[i], 'url': att['url']};
+    } else {
+      list.add({
+        'id': id,
+        'path': null,
+        'url': att?['url'],
+        'video': m['video'] == true,
+        'caption': m['caption'] ?? '',
+        'tag': m['tag'] ?? '',
+        'date': m['date'] ?? ymd(DateTime.now()),
+        if (m['filter'] != null) 'filter': m['filter'],
+        'fname': m['fname'] ?? '$id.jpg',
+        'from': m['name'] ?? 'Family',
+        'remote': true,
+      });
+      if (!appVisible) unawaited(ChatNotify.show('mem_$id', (m['name'] ?? 'Family').toString(), '🖼️ added a new memory${(m['caption'] ?? '').toString().isNotEmpty ? ': ${m['caption']}' : ''}'));
+    }
+    Store.i.d['memories'] = list;
+    await Store.i.save();
+    notifyListeners();
+    unawaited(downloadMemory(id));
+  }
+
+  final Set<String> _memDl = {};
+  Future<void> downloadMemory(String id) async {
+    final m = Store.i.list('memories').where((x) => x['id'] == id).firstOrNull;
+    if (m == null || m['url'] == null || m['path'] != null || _memDl.contains(id)) return;
+    _memDl.add(id);
+    try {
+      final r = await http.get(Uri.parse(m['url'].toString())).timeout(const Duration(minutes: 4));
+      if (r.statusCode == 200) {
+        final clear = await _decIso(_key!, r.bodyBytes);
+        final dir = Directory('${(await getApplicationDocumentsDirectory()).path}/memories');
+        if (!dir.existsSync()) dir.createSync(recursive: true);
+        final safe = (m['fname'] ?? 'memory').toString().replaceAll(RegExp(r'[^\w.\- ]'), '_');
+        final f = File('${dir.path}/${id}_$safe');
+        await f.writeAsBytes(clear, flush: true);
+        Store.i.d['memories'] = Store.i.list('memories').map((x) => x['id'] == id ? {...x, 'path': f.path, 'url': null} : x).toList();
+        await Store.i.save();
+        notifyListeners();
+      }
+    } catch (_) {}
+    _memDl.remove(id);
+  }
+
+  Future<void> _memDeleted(String id) async {
+    final m = Store.i.list('memories').where((x) => x['id'] == id).firstOrNull;
+    if (m == null) return;
+    Store.i.d['memories'] = Store.i.list('memories').where((x) => x['id'] != id).toList();
+    await Store.i.save();
+    try {
+      if (m['path'] != null) File(m['path'].toString()).deleteSync();
+    } catch (_) {}
+    notifyListeners();
   }
 
   @override
@@ -295,8 +410,22 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
         break;
       case 'name':
         break;
+      case 'mem':
+        await _gotMemory(m, att);
+        break;
+      case 'memdel':
+        await _memDeleted(m['ref'].toString());
+        break;
       case 'ack':
         final ref = (m['ref'] as List).map((e) => e.toString()).toSet();
+        final mo = memOut;
+        if (mo.any((x) => ref.contains(x['id']))) {
+          await _saveMemOut(mo.map((x) {
+            if (!ref.contains(x['id'])) return x;
+            final g = ((x['gotBy'] as List?) ?? []).map((e) => e.toString()).toSet()..add(from);
+            return {...x, 'gotBy': g.toList()};
+          }).toList());
+        }
         await _store(msgs.map((x) {
           if (x['from'] != me || !ref.contains(x['id'])) return x;
           final g = ((x['gotBy'] as List?) ?? []).map((e) => e.toString()).toSet()..add(from);
@@ -534,6 +663,28 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
         ok = await _publish({'t': 'msg', ...meta});
       }
       if (ok) await _patch(x['id'].toString(), {'sent': true, 'pubAt': now});
+    }
+    // shared memories: re-upload until every family phone has them (up to 7 days)
+    final mo = memOut;
+    var changed = false;
+    for (var i = 0; i < mo.length && budget > 0; i++) {
+      final x = mo[i];
+      if (now - ((x['at'] as num?)?.toInt() ?? 0) > 7 * 86400000) continue;
+      final pub = (x['pubAt'] as num?)?.toInt() ?? 0;
+      if (x['sent'] == true && (deliveredAll(x) || now - pub < 150 * 60000)) continue;
+      final f = File(x['path'].toString());
+      if (!f.existsSync()) continue;
+      budget--;
+      final ok = await _publishFile(Map<String, dynamic>.from(x['meta'] as Map), await f.readAsBytes());
+      if (ok) {
+        mo[i] = {...x, 'sent': true, 'pubAt': now};
+        changed = true;
+      }
+    }
+    if (changed) await _saveMemOut(mo);
+    // finish any memory downloads that were waiting
+    for (final m in Store.i.list('memories')) {
+      if (m['path'] == null && m['url'] != null) unawaited(downloadMemory(m['id'].toString()));
     }
   }
 }

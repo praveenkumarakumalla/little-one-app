@@ -103,10 +103,14 @@ Future<void> chatBackgroundCheck() async {
       try {
         final box = SecretBox.fromConcatenation(base64Decode(ev['message'].toString()), nonceLength: 12, macLength: 16);
         final m = jsonDecode(utf8.decode(await aes.decrypt(box, secretKey: key))) as Map;
-        if (m['from'] == me || (m['t'] != 'msg' && m['t'] != 'file')) continue;
+        if (m['from'] == me || (m['t'] != 'msg' && m['t'] != 'file' && m['t'] != 'mem')) continue;
         final id = m['id'].toString();
         if (known.contains(id)) continue;
-        await ChatNotify.show(id, (m['name'] ?? 'Family').toString(), ChatNotify.summary(m));
+        if (m['t'] == 'mem') {
+          await ChatNotify.show('mem_$id', (m['name'] ?? 'Family').toString(), '🖼️ added a new memory${(m['caption'] ?? '').toString().isNotEmpty ? ': ${m['caption']}' : ''}');
+        } else {
+          await ChatNotify.show(id, (m['name'] ?? 'Family').toString(), ChatNotify.summary(m));
+        }
       } catch (_) {}
     }
     await prefs.setInt('chatBgSince', latest);

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 
+import '../chat.dart';
 import '../data.dart';
 import '../filters.dart';
 import 'camera.dart';
@@ -51,7 +52,7 @@ class MemoriesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Store.i,
+      listenable: Listenable.merge([Store.i, Chat.i]),
       builder: (context, _) {
         final items = Store.i.list('memories')..sort((a, b) => (b['date'] ?? '').toString().compareTo((a['date'] ?? '').toString()));
         final groups = <String, List<Map<String, dynamic>>>{};
@@ -59,7 +60,12 @@ class MemoriesPage extends StatelessWidget {
           groups.putIfAbsent((m['date'] ?? '').toString().substring(0, 7), () => []).add(m);
         }
         return Scaffold(
-          appBar: AppBar(title: const Text('Memories · జ్ఞాపకాలు'), actions: [IconButton(tooltip: 'Camera with filters', icon: const Icon(Icons.camera_alt_outlined), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CameraPage())))]),
+          appBar: AppBar(title: const Text('Memories · జ్ఞాపకాలు'), actions: [
+            IconButton(
+              tooltip: 'Share with family',
+              icon: Icon(Chat.i.paired ? Icons.cloud_sync_outlined : Icons.cloud_off_outlined),
+              onPressed: () => _syncInfo(context),
+            ),IconButton(tooltip: 'Camera with filters', icon: const Icon(Icons.camera_alt_outlined), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CameraPage())))]),
           floatingActionButton: FloatingActionButton.extended(onPressed: () => _add(context), icon: const Icon(Icons.add_a_photo), label: const Text('Add')),
           body: items.isEmpty
               ? const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('Her first photos and videos will live here, grouped by month. Tap Add.', textAlign: TextAlign.center)))
@@ -84,7 +90,54 @@ class MemoriesPage extends StatelessWidget {
     );
   }
 
+  Future<void> _syncInfo(BuildContext context) async {
+    if (!Chat.i.paired) {
+      await showDialog(
+        context: context,
+        builder: (d) => AlertDialog(
+          title: const Text('Family gallery 👨‍👩‍👧'),
+          content: const Text('Join the family chat first (Chat tab). Then every photo and video saved here appears on all family phones automatically.'),
+          actions: [FilledButton(onPressed: () => Navigator.pop(d), child: const Text('OK'))],
+        ),
+      );
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text('Family gallery is ON 💖'),
+        content: const Text('New photos and videos you save here appear on every family phone automatically (up to 14 MB each, end-to-end encrypted).\n\nShare the memories you saved before too?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Not now')),
+          FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Share old memories')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sharing… keep the app open for a minute')));
+    final n = await Chat.i.shareAllMemories();
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$n memories shared with the family 💖')));
+  }
+
   Widget _tile(BuildContext context, Map<String, dynamic> m) {
+    if (m['path'] == null) {
+      return GestureDetector(
+        onTap: () => Chat.i.downloadMemory(m['id'].toString()),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            color: const Color(0xFFFFE3EE),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.all(6),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5)),
+              const SizedBox(height: 6),
+              Text('From ${m['from'] ?? 'family'}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF5A1F3A))),
+            ]),
+          ),
+        ),
+      );
+    }
     final path = m['path'].toString();
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ViewerPage(m: m))),
@@ -94,6 +147,8 @@ class MemoriesPage extends StatelessWidget {
           m['video'] == true
               ? Container(color: Colors.black87, child: const Icon(Icons.play_circle_fill, color: Colors.white, size: 40))
               : Image.file(File(path), fit: BoxFit.cover, cacheWidth: 360, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image)),
+          if (m['from'] != null)
+            Positioned(right: 5, bottom: 5, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(8)), child: Text('👤 ${m['from']}', style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)))),
           if ((m['tag'] ?? '').toString().isNotEmpty)
             Positioned(left: 6, top: 6, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)), child: Text(m['tag'].toString(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.pink)))),
         ]),

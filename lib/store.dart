@@ -110,15 +110,21 @@ class Store extends ChangeNotifier {
     return ints(k).where((t) => t >= start).length;
   }
 
+  /// Hooks used by family sync (memories are shared with the family chat group).
+  static void Function(String key, Map<String, dynamic> item)? onAdd;
+  static void Function(String key, String id)? onRemove;
+
   Future<void> addItem(String k, Map<String, dynamic> item) async {
     final l = (d[k] as List).toList()..add(item);
     d[k] = l;
     await save();
+    onAdd?.call(k, item);
   }
 
   Future<void> removeItem(String k, String id) async {
     d[k] = (d[k] as List).where((e) => (e as Map)['id'] != id).toList();
     await save();
+    onRemove?.call(k, id);
   }
 
   Future<void> toggleVax(String key, bool done) async {
