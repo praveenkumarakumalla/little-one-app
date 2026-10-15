@@ -242,10 +242,13 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     _key = k.bytes;
   }
 
-  Future<void> pair(String code, String name) async {
+  bool get isMaster => cfg['master'] == true;
+
+  Future<void> pair(String code, String name, {bool master = false}) async {
     final c = cfg;
     c['code'] = code;
     c['name'] = name;
+    c['master'] = master;
     c['device'] = c['device'] ?? Store.newId();
     c.remove('since');
     c['members'] = <String, dynamic>{};
@@ -1150,7 +1153,7 @@ class _ChatPageState extends State<ChatPage> {
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Members (${c.members.length + 1} of ${Chat.maxMembers})', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-              ListTile(contentPadding: EdgeInsets.zero, leading: const CircleAvatar(child: Text('🙂')), title: Text('${c.myName} (you)')),
+              ListTile(contentPadding: EdgeInsets.zero, leading: CircleAvatar(child: Text(c.isMaster ? '👑' : '🙂')), title: Text('${c.myName} (you)'), subtitle: c.isMaster ? const Text('Master phone – you control who has the family code') : null),
               ...c.members.entries.map((e) {
                 final seen = (e.value['seen'] as num?)?.toInt();
                 return ListTile(
@@ -1163,7 +1166,7 @@ class _ChatPageState extends State<ChatPage> {
               const Divider(),
               const Text('Group code', style: TextStyle(fontWeight: FontWeight.w700)),
               SelectableText(c.cfg['code'].toString(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-              const Text('Send this code to family members you want to add (up to 10 people). Anyone with the code can read the chat.', style: TextStyle(fontSize: 12)),
+              const Text('Send this code only to family (up to 10 people). Anyone with the code can read the chat and see shared memories. For friends who just want to play, use a game room code in Games instead.', style: TextStyle(fontSize: 12)),
               ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.person_add_alt), title: const Text('Invite family (share code)'), onTap: () => Share.share('Join our Little One family chat 👶💬\nCode: ${c.cfg['code']}\nOpen Little One → Chat → "Join with code".')),
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -1174,6 +1177,30 @@ class _ChatPageState extends State<ChatPage> {
                   if (n != null && n.isNotEmpty) await c.setName(n);
                 },
               ),
+              if (c.isMaster)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.key_off_outlined),
+                  title: const Text('👑 Change family code (remove someone)'),
+                  subtitle: const Text('Makes a new code. Only people you send it to keep getting new messages and memories.'),
+                  onTap: () async {
+                    final ok = await showDialog<bool>(
+                      context: context,
+                      builder: (d) => AlertDialog(
+                        title: const Text('Change the family code?'),
+                        content: const Text('Everyone will stop receiving new messages and memories until you send them the new code. Old messages stay on every phone.
+
+Game room codes are separate – friends can still play games with you.'),
+                        actions: [TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Make new code'))],
+                      ),
+                    );
+                    if (ok != true) return;
+                    final code = Chat.newCode();
+                    await c.pair(code, c.myName, master: true);
+                    if (s.mounted) Navigator.pop(s);
+                    await Share.share('Our new Little One family code 👶💬\nCode: $code\nOpen Little One → Chat → Leave group → "Join with code".');
+                  },
+                ),
               ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.sync), title: const Text('Reconnect'), onTap: () => c.reconnectNow()),
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -1278,7 +1305,7 @@ class _PairViewState extends State<_PairView> {
     ];
   }
 
-  Future<void> _go(String code) async {
+  Future<void> _go(String code, {bool master = false}) async {
     if (_name.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Type your name first')));
       return;
@@ -1288,7 +1315,7 @@ class _PairViewState extends State<_PairView> {
       return;
     }
     setState(() => busy = true);
-    await Chat.i.pair(code.trim().toUpperCase(), _name.text.trim());
+    await Chat.i.pair(code.trim().toUpperCase(), _name.text.trim(), master: master);
     if (mounted) setState(() => busy = false);
   }
 
@@ -1321,7 +1348,7 @@ class _PairViewState extends State<_PairView> {
                 const SizedBox(height: 8),
                 Wrap(spacing: 8, children: [
                   OutlinedButton.icon(onPressed: () => Share.share('Join our Little One family chat 👶💬\nCode: $newCode\nOpen Little One → Chat → "Join with code".'), icon: const Icon(Icons.share), label: const Text('Send code')),
-                  FilledButton(onPressed: busy ? null : () => _go(newCode!), child: const Text('Start chat')),
+                  FilledButton(onPressed: busy ? null : () => _go(newCode!, master: true), child: const Text('Start chat')),
                 ]),
               ],
             ]),

@@ -504,7 +504,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
     if (found) {
       text = '${lens.emoji} Face found!${lens.hint.isNotEmpty ? '  ${lens.hint}' : ''}';
     } else if (detErr != null && waited) {
-      text = '⚠️ Face tracking problem: ${detErr!.length > 140 ? detErr!.substring(0, 140) : detErr}';
+      text = '⚠️ Face tracking problem: ${detErr!.length > 400 ? detErr!.substring(0, 400) : detErr}';
     } else if (!front && waited) {
       text = '🔍 Looking for a face… tap 🔄 for selfie';
     } else {

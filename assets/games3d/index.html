@@ -42,6 +42,20 @@
   #promo { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 9; background: rgba(0,0,0,.35); }
   #promo.show { display: flex; }
   #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 22px; font-weight: 800; z-index: 20; background: #2a1d17; }
+  #lobby { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 12; background: rgba(25,12,30,.55); padding: 16px; }
+  #lobby.show { display: flex; }
+  #lobby .card { width: 100%; max-width: 380px; }
+  #lobbyCode { font-size: 44px; font-weight: 900; letter-spacing: 8px; color: #e8437a; margin: 4px 0 2px; }
+  #lobbyList { text-align: left; margin: 12px 0; display: flex; flex-direction: column; gap: 6px; }
+  .lp { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 14px; background: #fff; font-weight: 800; color: #3a2440; box-shadow: 0 3px 0 #ead2df; }
+  .lp i { color: #9a7a9a; font-weight: 600; }
+  .lp .seat { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.2); }
+  .lp .x { margin-left: auto; border: none; background: #ffe3ee; color: #c2185b; border-radius: 10px; font-weight: 900; padding: 4px 9px; }
+  #lobbyHint { font-size: 13px; color: #6a4a6a; font-weight: 600; margin-bottom: 12px; }
+  #lobbyWait { font-weight: 800; color: #3a2440; animation: blink 1.4s infinite; }
+  #netBadge { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 2px); z-index: 6; display: none; font-size: 11px; font-weight: 800; color: #fff; background: rgba(46,174,90,.85); padding: 2px 10px; border-radius: 10px; pointer-events: none; }
+  #netBadge.bad { background: rgba(229,57,80,.9); }
+  @keyframes blink { 50% { opacity: .45; } }
   @keyframes pop { from { transform: scale(.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   @keyframes fade { from { opacity: 0; } }
 </style>
@@ -66,12 +80,27 @@
 <div id="promo"><div class="card"><div id="winTitle2" style="font-size:22px;font-weight:900;color:#3a2440;margin-bottom:12px">Promote to</div><div class="row" id="promoRow"></div></div></div>
 <div id="win"><div class="card"><div class="cup">🏆</div><div id="winTitle"></div><div id="winSub"></div>
   <div class="row"><button class="btn" id="exitWin">Exit</button><button class="btn" id="again" style="background:linear-gradient(#ff8fb3,#e8437a);color:#fff;box-shadow:0 5px 0 #a3204f">Play again</button></div></div></div>
+<div id="lobby"><div class="card">
+  <div style="font-size:15px;font-weight:800;color:#6a4a6a">ROOM CODE</div>
+  <div id="lobbyCode">----</div>
+  <button class="btn" id="lobbyShare" style="font-size:15px;height:38px">📤 Share code</button>
+  <div id="lobbyList"></div>
+  <div id="lobbyHint"></div>
+  <div id="lobbyWait">⏳ Waiting for the host…</div>
+  <div class="row"><button class="btn" id="lobbyAddBot" style="font-size:15px">＋ 🤖 Computer</button>
+  <button class="btn" id="lobbyStart" style="font-size:16px;background:linear-gradient(#7ee08f,#2eae5a);color:#fff;box-shadow:0 5px 0 #1d7a3c">▶ Start</button></div>
+</div></div>
+<div id="netBadge"></div>
 <div id="loading">Setting up the board… 🎲</div>
 <script src="three.min.js"></script>
 <script src="engine.js"></script>
 <script src="pieces.js"></script>
+<script src="peerjs.min.js"></script>
+<script src="net.js"></script>
 <script src="chess.js"></script>
 <script src="ludo.js"></script>
 <script src="snakes.js"></script>
+<script src="uno.js"></script>
+<script src="sheep.js"></script>
 </body>
 </html>

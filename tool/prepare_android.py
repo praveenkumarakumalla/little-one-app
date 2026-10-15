@@ -32,7 +32,8 @@ if os.path.exists(kts):
     buildTypes {'''
     must("buildTypes {" in g, "buildTypes not found")
     g = g.replace("    buildTypes {", sign, 1)
-    g = g.replace('signingConfig = signingConfigs.getByName("debug")', 'signingConfig = signingConfigs.getByName("release")')
+    g = g.replace('signingConfig = signingConfigs.getByName("debug")', 'signingConfig = signingConfigs.getByName("release")\n            // R8 renaming breaks Google ML Kit (face detection NullPointerException) – keep code as is\n            isMinifyEnabled = false\n            isShrinkResources = false')
+    must("isMinifyEnabled = false" in g, "could not turn off minify")
     if "isCoreLibraryDesugaringEnabled" not in g:
         g = re.sub(r"(compileOptions\s*\{)", r"\1\n        isCoreLibraryDesugaringEnabled = true", g, count=1)
         g += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
@@ -51,7 +52,7 @@ elif os.path.exists(groovy):
 
     buildTypes {'''
     g = g.replace("    buildTypes {", sign, 1)
-    g = g.replace("signingConfig = signingConfigs.debug", "signingConfig = signingConfigs.release").replace("signingConfig signingConfigs.debug", "signingConfig signingConfigs.release")
+    g = g.replace("signingConfig = signingConfigs.debug", "signingConfig = signingConfigs.release\n            minifyEnabled false\n            shrinkResources false").replace("signingConfig signingConfigs.debug", "signingConfig signingConfigs.release\n            minifyEnabled false\n            shrinkResources false")
     if "coreLibraryDesugaringEnabled" not in g:
         g = re.sub(r"(compileOptions\s*\{)", r"\1\n        coreLibraryDesugaringEnabled true", g, count=1)
         g += '\ndependencies {\n    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"\n}\n'

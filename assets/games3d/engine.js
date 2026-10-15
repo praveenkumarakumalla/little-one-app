@@ -62,7 +62,7 @@ const Snd = (G.snd = {
     s.start(t);
     s.stop(t + dur + 0.05);
   },
-  ok() { return this.on && this.ctx && this.ctx.state !== 'closed'; },
+  ok() { return !G.fast && this.on && this.ctx && this.ctx.state !== 'closed'; },
   // game sounds
   wood() { this.hit(1800, 0.06, 0.7); this.tone(420, 0.09, 'triangle', 0.35, 0, 240); },
   place() { this.hit(1300, 0.08, 0.9); this.tone(300, 0.12, 'triangle', 0.4, 0, 160); },
@@ -318,10 +318,12 @@ G.ease = {
   inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
   back: (t) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
 };
+G.fast = false; // true while catching up on moves made before we joined
 G.tween = function (ms, fn, ease) {
+  if (G.fast) { fn((ease || G.ease.inOut)(1)); return Promise.resolve(); }
   return new Promise((res) => tweens.push({ t0: performance.now(), ms, fn, ease: ease || G.ease.inOut, res }));
 };
-G.wait = (ms) => new Promise((r) => setTimeout(r, ms));
+G.wait = (ms) => (G.fast ? Promise.resolve() : new Promise((r) => setTimeout(r, ms)));
 
 /** Hop an object from its position to `to` with an arc of height h. */
 G.hopTo = function (obj, to, ms, h) {
@@ -616,10 +618,3 @@ G.$('sound').onclick = () => {
 };
 G.$('exitWin').onclick = () => G.post('exit');
 
-window.startGame = function (cfg) {
-  if (typeof cfg === 'string') cfg = JSON.parse(cfg);
-  G.cfg = cfg;
-  const game = { chess: window.Chess3D, ludo: window.Ludo3D, snakes: window.Snakes3D }[cfg.game];
-  if (game) game.start(cfg);
-  G.$('loading').style.display = 'none';
-};

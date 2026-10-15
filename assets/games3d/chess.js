@@ -181,7 +181,7 @@
   ];
 
   // ───────── 3D scene state ─────────
-  let cfg, pos, moves = [], history = [], theme = 0, root, boardMesh, pieces = {}, sel = -1, marks = [], lastMarks = [], busy = false, over = false;
+  let cfg, setup, players = [], pos, moves = [], history = [], theme = 0, root, boardMesh, pieces = {}, sel = -1, marks = [], lastMarks = [], busy = false, over = false;
   let matW, matB, graveW = 0, graveB = 0, checkMark = null;
   const PS = 1.22; // piece scale
   const sqPos = (sq, y) => new THREE.Vector3((sq & 7) - 3.5, y || 0, (sq >> 3) - 3.5);
@@ -329,10 +329,10 @@
       checkMark = markSq(kingSq(pos, pos.side), 0xff2020, 'sq');
       checkMark.material.opacity = 0.65;
     }
-    const wn = cfg.white, bn = cfg.vsComputer ? 'Computer' : cfg.black;
+    const wn = players[0].name, bn = players[1].name;
     G.players([
-      { name: wn, color: THEMES[theme].white.color === '#fffafc' ? '#e9a3c4' : '#d9b98a' },
-      { name: bn, color: THEMES[theme].black.color, bot: cfg.vsComputer },
+      { name: wn, color: THEMES[theme].white.color === '#fffafc' ? '#e9a3c4' : '#d9b98a', bot: players[0].bot },
+      { name: bn, color: THEMES[theme].black.color, bot: players[1].bot },
     ], pos.side === 1 ? 0 : 1);
     if (!moves.length) {
       over = true;
@@ -341,17 +341,17 @@
         G.status('Checkmate! ♛');
         setTimeout(() => {
           G.confetti(new THREE.Vector3(0, 0, 0), 10);
-          G.winScreen(winner + ' wins! 🎉', 'Checkmate', newGame);
+          G.winScreen(winner + ' wins! 🎉', 'Checkmate', rematch);
         }, 700);
       } else {
         G.status('Stalemate – draw 🤝');
-        setTimeout(() => G.winScreen("It's a draw 🤝", 'Stalemate', newGame), 700);
+        setTimeout(() => G.winScreen("It's a draw 🤝", 'Stalemate', rematch), 700);
       }
       return;
     }
     over = false;
-    const who = pos.side === 1 ? wn : bn;
-    G.status((chk ? '⚠️ Check! ' : '') + who + (pos.side === 1 || !cfg.vsComputer ? ' – your move' : ' is thinking…'));
+    const cur = players[pos.side === 1 ? 0 : 1];
+    G.status((chk ? '⚠️ Check! ' : '') + cur.name + (cur.bot ? ' is thinking…' : G.mine(cur) ? ' – your move' : ' is moving…'));
   }
 
   async function animateMove(m, fx) {
@@ -393,6 +393,7 @@
   }
 
   let posBefore = null;
+  const seatOf = (side) => (side === 1 ? 0 : 1);
   async function doMove(m) {
     busy = true;
     clearMarks();
@@ -407,25 +408,33 @@
     if (inCheck(pos, pos.side)) { G.snd.check(); G.toast('Check! ⚠️'); }
     busy = false;
     if (over) return;
-    if (cfg.vsComputer && pos.side === -1) {
+    nextTurn();
+  }
+
+  function nextTurn() {
+    const cur = players[seatOf(pos.side)];
+    if (G.botTurn(cur)) {
       busy = true;
-      await G.wait(250);
-      const depth = Math.max(1, Math.min(3, cfg.level || 2));
-      const bm = bestMove(pos, depth);
-      busy = false;
-      if (bm) await doMove(bm);
-    } else if (!cfg.vsComputer) {
-      // turn the board towards the player whose move it is
-      await G.wait(250);
-      const d = G.orbit.def;
-      const target = pos.side === 1 ? 0 : Math.PI;
-      const from = G.orbit.theta;
-      let dt = target - from;
-      while (dt > Math.PI) dt -= Math.PI * 2;
-      while (dt < -Math.PI) dt += Math.PI * 2;
-      if (d) d.theta = target;
-      G.tween(900, (k) => { G.orbit.theta = from + dt * k; G.updateCam(); });
+      setTimeout(() => {
+        const depth = Math.max(1, Math.min(3, setup.level || 2));
+        const bm = bestMove(pos, depth);
+        busy = false;
+        if (bm) G.act({ m: bm, n: history.length });
+      }, G.fast ? 0 : 350);
+    } else if (!G.net.online && G.localHumans(players) > 1) {
+      // two people on one phone: turn the board to whoever moves next
+      turnCamera(pos.side === 1 ? 0 : Math.PI);
     }
+  }
+
+  function turnCamera(target) {
+    const d = G.orbit.def;
+    const from = G.orbit.theta;
+    let dt = target - from;
+    while (dt > Math.PI) dt -= Math.PI * 2;
+    while (dt < -Math.PI) dt += Math.PI * 2;
+    if (d) d.theta = target;
+    G.tween(900, (k) => { G.orbit.theta = from + dt * k; G.updateCam(); });
   }
 
   function choosePromo(side) {
@@ -447,7 +456,7 @@
 
   async function tap(x, y) {
     if (busy || over) return;
-    if (cfg.vsComputer && pos.side === -1) return;
+    if (!G.mine(players[seatOf(pos.side)])) return;
     // the square under the finger wins; tall pieces in front shouldn't steal the tap
     let sq = -1;
     const p = G.pickPlane(x, y, 0);
@@ -472,7 +481,7 @@
           const t = await choosePromo(pos.side);
           m = ms.find((q) => q[2] === t);
         }
-        await doMove(m);
+        G.act({ m, n: history.length });
         return;
       }
     }
@@ -498,20 +507,22 @@
     busy = false;
     over = false;
     rebuild();
-    G.setView(new THREE.Vector3(0, 0, 0.5), 0.95, G.fitRadius(9.5, 0.95), 0);
+    // look from your own side of the board
+    const meBlack = G.net.online && G.mine(players[1]) && !G.mine(players[0]);
+    G.setView(new THREE.Vector3(0, 0, meBlack ? -0.5 : 0.5), 0.95, G.fitRadius(9.5, 0.95), meBlack ? Math.PI : 0);
+    nextTurn();
   }
+  const rematch = () => G.act({ t: 'new' });
 
   function undo() {
+    if (G.net.online) { G.toast('Undo works only on one phone'); return; }
     if (busy || !history.length) return;
-    if (cfg.vsComputer && history.length >= 2 && pos.side === 1) history.pop();
-    pos = history.pop();
-    sel = -1;
-    rebuild();
-    G.snd.wood();
+    G.act({ t: 'undo' });
   }
 
   window.Chess3D = {
-    start(c) {
+    title: 'Chess', minPlayers: 2, maxPlayers: 2, colors: ['#e8d3a9', '#3e2415'],
+    init(c) {
       cfg = c;
       theme = c.theme || 0;
       G.$('title').textContent = '♛ Chess 3D';
@@ -526,11 +537,48 @@
         rebuild();
         G.snd.select();
       });
-      mk('⟳ New', () => { newGame(); G.snd.wood(); });
+      mk('⟳ New', () => { if (G.net.online && !over) { G.toast('Finish this game first 🙂'); return; } rematch(); });
       G.onTap = tap;
       G.orbit.minR = 7;
       G.orbit.maxR = 30;
+      // show an empty board while the room fills up
+      players = [{ name: c.white || 'White' }, { name: c.black || 'Black' }];
+      pos = startPos();
+      rebuild();
+      G.setView(new THREE.Vector3(0, 0, 0.5), 0.95, G.fitRadius(9.5, 0.95), 0);
+    },
+    makeSetup(list) {
+      let ps = list;
+      if (!G.net.online) ps = [{ name: cfg.white || 'White', bot: false }, { name: cfg.vsComputer ? 'Computer' : cfg.black || 'Black', bot: !!cfg.vsComputer }];
+      while (ps.length < 2) ps.push({ name: 'Computer', bot: true, id: 'bot' });
+      return { players: ps.slice(0, 2), level: cfg.level || 2 };
+    },
+    begin(s) {
+      setup = s;
+      players = s.players;
       newGame();
+    },
+    allowed(a, from) {
+      if (a.t === 'new') return over || from === G.net.myId;
+      if (a.t === 'undo') return false;
+      const cur = players[seatOf(pos.side)];
+      return cur.id === from || (cur.bot && from === G.net.myId);
+    },
+    async apply(a) {
+      if (a.t === 'new') { newGame(); G.snd.wood(); return; }
+      if (a.t === 'undo') {
+        if (!history.length) return;
+        if (players.some((p) => p.bot) && history.length >= 2 && players[seatOf(pos.side)] && !players[seatOf(pos.side)].bot) history.pop();
+        pos = history.pop();
+        sel = -1;
+        over = false;
+        rebuild();
+        G.snd.wood();
+        return;
+      }
+      if (over || a.n !== history.length) return; // stale or duplicate
+      if (!legal(pos).some((m) => m[0] === a.m[0] && m[1] === a.m[1] && m[2] === a.m[2])) return;
+      await doMove(a.m);
     },
   };
 })();

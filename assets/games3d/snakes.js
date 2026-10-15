@@ -6,7 +6,7 @@
   const PCOL = ['#e53950', '#2eae5a', '#f2b705', '#2f7de1'];
   const CELL_COLS = ['#ff7a9c', '#ffc93c', '#5fd27f', '#5fb2ff', '#b083ff', '#ff9a5c'];
 
-  let players, posn, turn, dice = 1, busy = false, over = false, root, pawns, diceMesh, snakeHeads = [];
+  let players, posn, turn, dice = 1, busy = false, over = false, step = 0, root, pawns, diceMesh, snakeHeads = [];
 
   function cellXY(n) {
     const i = n - 1, row = Math.floor(i / 10);
@@ -211,15 +211,21 @@
     G.players(players.map((p, i) => ({ name: p.name, color: PCOL[i], bot: p.bot, extra: posn[i] ? '· ' + posn[i] : '' })), turn);
     const rb = G.$('roll');
     rb.style.display = 'block';
-    rb.classList.toggle('off', cur().bot || busy || over);
+    rb.classList.toggle('off', !G.mine(cur()) || busy || over);
     rb.style.background = `linear-gradient(${G.shade(PCOL[turn], 0.15)}, ${PCOL[turn]})`;
   }
 
-  async function roll() {
-    if (busy || over) return;
+  function roll() {
+    if (busy || over || !G.mine(cur())) return;
     busy = true;
     hud();
-    dice = 1 + Math.floor(Math.random() * 6);
+    G.act({ t: 'roll', v: 1 + Math.floor(Math.random() * 6), n: step });
+  }
+
+  async function doRoll(v) {
+    busy = true;
+    hud();
+    dice = v;
     await G.rollDice(diceMesh, dice, new THREE.Vector3(3.4, -0.15, 6.4));
     const p = turn, m = pawns[p];
     if (posn[p] + dice > 100) {
@@ -260,7 +266,7 @@
         hud();
         G.confetti(new THREE.Vector3(0, 0, 0), 10);
         G.status(cur().name + ' wins! 🎉');
-        G.winScreen(cur().name + ' wins! 🎉', 'Reached 100 first', restart);
+        G.winScreen(cur().name + ' wins! 🎉', 'Reached 100 first', () => G.act({ t: 'new' }));
         return;
       }
     }
@@ -270,12 +276,17 @@
     busy = false;
     G.status(dice === 6 ? cur().name + ' rolled 6 – roll again! 🎲' : cur().name + "'s turn");
     hud();
-    if (cur().bot) setTimeout(() => { if (!busy && cur().bot) roll(); }, 800);
+    botGo();
   }
 
-  function restart() {
+  function botGo() {
+    if (G.botTurn(cur())) setTimeout(() => { if (!busy && G.botTurn(cur())) G.act({ t: 'roll', v: 1 + Math.floor(Math.random() * 6), n: step }); }, G.fast ? 0 : 800);
+  }
+
+  function restart(preview) {
     posn = players.map(() => 0);
     turn = 0;
+    step = 0;
     busy = over = false;
     if (root) G.scene.remove(root);
     root = new THREE.Group();
@@ -286,22 +297,35 @@
     diceMesh = G.makeDice(0.8);
     diceMesh.position.set(3.4, 0.25, 6.4);
     root.add(diceMesh);
+    if (preview) { G.$('roll').style.display = 'none'; return; }
     G.status(cur().name + ', roll the dice! 🎲');
     hud();
-    if (cur().bot) setTimeout(roll, 900);
+    botGo();
   }
 
   window.Snakes3D = {
-    start(c) {
-      players = c.players;
+    title: 'Snakes & Ladders', minPlayers: 2, maxPlayers: 4, colors: PCOL,
+    init(c) {
       G.$('title').textContent = '🐍 Snakes & Ladders';
       G.$('actions').innerHTML = '';
-      G.$('roll').onclick = () => { if (!cur().bot) roll(); };
-      G.onTap = (x, y) => { if (G.pick(x, y, [diceMesh]).length && !cur().bot) roll(); };
+      G.$('roll').onclick = () => roll();
+      G.onTap = (x, y) => { if (G.pick(x, y, [diceMesh]).length) roll(); };
       G.orbit.minR = 8;
       G.orbit.maxR = 36;
-      restart();
+      players = [];
+      restart(true);
       G.setView(new THREE.Vector3(0, 0, 1.2), 0.72, G.fitRadius(11.8, 0.72), 0);
+    },
+    makeSetup(list) { return { players: list.slice(0, 4) }; },
+    begin(s) { players = s.players; restart(); },
+    allowed(a, from) {
+      if (a.t === 'new') return over || from === G.net.myId;
+      const p = cur();
+      return p.id === from || (p.bot && from === G.net.myId);
+    },
+    async apply(a) {
+      if (a.t === 'new') { restart(); return; }
+      if (a.t === 'roll' && a.n === step && !over) { step++; await doRoll(a.v); }
     },
   };
 })();

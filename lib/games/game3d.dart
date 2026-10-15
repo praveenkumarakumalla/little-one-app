@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../store.dart';
@@ -47,6 +48,8 @@ class _Game3DPageState extends State<Game3DPage> {
         default:
           HapticFeedback.selectionClick();
       }
+    } else if (m.startsWith('share:')) {
+      Share.share(m.substring(6));
     } else if (m.startsWith('theme:')) {
       Store.i.setSetting('chessTheme', int.tryParse(m.substring(6)) ?? 0);
     }

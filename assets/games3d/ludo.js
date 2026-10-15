@@ -26,7 +26,7 @@
   const yardCentre = (seat) => [[3, 3], [12, 3], [12, 12], [3, 12]][seat];
   const yardSpot = (seat, k) => { const c = yardCentre(seat); return [c[0] + (k % 2 ? 1.05 : -1.05), c[1] + (k < 2 ? -1.05 : 1.05)]; };
 
-  let cfg, players, seats, tok, turn, dice = 1, sixes = 0, rolled = false, busy = false, over = false;
+  let cfg, players, seats, tok, turn, dice = 1, sixes = 0, rolled = false, busy = false, over = false, step = 0;
   let root, pawnMeshes, diceMesh, rings = [], pads = [];
   const cellPos = (c, r, y) => new THREE.Vector3(c - 7 + 0.5, y == null ? 0.17 : y, r - 7 + 0.5);
   const abs = (p, rel) => (START[seats[p]] + rel) % 52;
@@ -208,7 +208,7 @@
     pads.forEach((pd, s) => (pd.material.emissiveIntensity = s === seats[turn] ? 0.25 : 0));
     const rb = G.$('roll');
     rb.style.display = 'block';
-    rb.classList.toggle('off', cur().bot || rolled || busy || over);
+    rb.classList.toggle('off', !G.mine(cur()) || rolled || busy || over);
     rb.style.background = `linear-gradient(${G.shade(SEAT_COL[seats[turn]], 0.15)}, ${SEAT_COL[seats[turn]]})`;
   }
 
@@ -238,11 +238,17 @@
     return cellPos(cx - 0.5, cy - 0.5, 0.22);
   }
 
-  async function roll() {
-    if (busy || rolled || over) return;
+  function roll() {
+    if (busy || rolled || over || !G.mine(cur())) return;
     busy = true;
     hud();
-    dice = 1 + Math.floor(Math.random() * 6);
+    G.act({ t: 'roll', v: 1 + Math.floor(Math.random() * 6), n: step });
+  }
+
+  async function doRoll(v) {
+    busy = true;
+    hud();
+    dice = v;
     const to = diceSpot();
     await G.rollDice(diceMesh, dice, to);
     rolled = true;
@@ -264,13 +270,19 @@
       return next(dice === 6);
     }
     busy = false;
-    if (cur().bot || ms.length === 1 || ms.every((k) => tok[turn][k] === -1)) {
+    if (cur().bot) {
       G.status(cur().name + ' rolled ' + dice);
-      await G.wait(cur().bot ? 550 : 350);
-      return move(cur().bot ? botPick(ms) : ms[0]);
+      if (G.runsBots()) setTimeout(() => G.act({ t: 'move', k: botPick(ms), n: step }), G.fast ? 0 : 550);
+      return;
     }
-    G.status(cur().name + ' rolled ' + dice + ' – tap a pawn');
-    showRings(ms);
+    if (ms.length === 1 || ms.every((k) => tok[turn][k] === -1)) {
+      // only one sensible move – every phone makes it by itself
+      G.status(cur().name + ' rolled ' + dice);
+      await G.wait(350);
+      return doMove(ms[0]);
+    }
+    G.status(cur().name + ' rolled ' + dice + (G.mine(cur()) ? ' – tap a pawn' : ' – choosing…'));
+    if (G.mine(cur())) showRings(ms);
     hud();
   }
 
@@ -291,8 +303,15 @@
     return ms.slice().sort((a, b) => score(b) - score(a))[0];
   }
 
-  async function move(k) {
-    if (busy || !rolled || !canMove(turn, k, dice)) return;
+  function move(k) {
+    if (busy || !rolled || !canMove(turn, k, dice) || !G.mine(cur())) return;
+    busy = true;
+    clearRings();
+    G.act({ t: 'move', k, n: step });
+  }
+
+  async function doMove(k) {
+    if (!canMove(turn, k, dice)) return;
     busy = true;
     clearRings();
     hud();
@@ -342,7 +361,7 @@
         hud();
         G.confetti(new THREE.Vector3(0, 0, 0), 14);
         G.status(cur().name + ' wins! 🎉');
-        G.winScreen(cur().name + ' wins Ludo! 🎉', 'All four pawns are home', restart);
+        G.winScreen(cur().name + ' wins Ludo! 🎉', 'All four pawns are home', () => G.act({ t: 'new' }));
         return;
       }
     }
@@ -368,14 +387,14 @@
     busy = false;
     G.status(extra ? cur().name + ' rolls again! 🎲' : cur().name + "'s turn – roll the dice");
     hud();
-    if (cur().bot) setTimeout(() => { if (!rolled && !busy && cur().bot) roll(); }, 800);
+    if (G.botTurn(cur())) setTimeout(() => { if (!rolled && G.botTurn(cur())) G.act({ t: 'roll', v: 1 + Math.floor(Math.random() * 6), n: step }); }, G.fast ? 0 : 800);
   }
 
   function tap(x, y) {
     if (over) return;
     const dh = G.pick(x, y, [diceMesh]);
-    if (dh.length && !cur().bot && !rolled) return roll();
-    if (cur().bot || !rolled || busy) return;
+    if (dh.length && G.mine(cur()) && !rolled) return roll();
+    if (!G.mine(cur()) || !rolled || busy) return;
     const ms = movable(dice);
     const hits = G.pick(x, y, pawnMeshes[turn]);
     for (const h of hits) {
@@ -394,9 +413,10 @@
     if (best >= 0) move(best);
   }
 
-  function restart() {
+  function restart(preview) {
     tok = players.map(() => [-1, -1, -1, -1]);
     turn = 0;
+    step = 0;
     rolled = busy = over = false;
     sixes = 0;
     if (root) G.scene.remove(root);
@@ -410,24 +430,51 @@
     diceMesh.position.y = 0.65;
     root.add(diceMesh);
     rings = [];
+    if (preview) { G.$('roll').style.display = 'none'; return; }
     next(true);
     G.status(cur().name + ', roll the dice! 🎲');
   }
 
+  function setPlayers(ps) {
+    players = ps;
+    const n = players.length;
+    seats = n === 2 ? [0, 2] : n === 3 ? [0, 1, 2] : [0, 1, 2, 3];
+  }
+
   window.Ludo3D = {
-    start(c) {
+    title: 'Ludo', minPlayers: 2, maxPlayers: 4, colors: SEAT_COL,
+    init(c) {
       cfg = c;
-      players = c.players;
-      const n = players.length;
-      seats = n === 2 ? [0, 2] : n === 3 ? [0, 1, 2] : [0, 1, 2, 3];
       G.$('title').textContent = '🎲 Ludo 3D';
       G.$('actions').innerHTML = '';
-      G.$('roll').onclick = () => { if (!cur().bot) roll(); };
+      G.$('roll').onclick = () => roll();
       G.onTap = tap;
       G.orbit.minR = 9;
       G.orbit.maxR = 40;
-      restart();
+      setPlayers([{ name: '…' }, { name: '…' }, { name: '…' }, { name: '…' }]);
+      restart(true);
       G.setView(new THREE.Vector3(0, 0, 0.6), 0.7, G.fitRadius(16.2, 0.7), 0);
+    },
+    makeSetup(list) {
+      return { players: list.slice(0, 4) };
+    },
+    begin(s) {
+      setPlayers(s.players);
+      // you sit at your own colour's corner
+      const me = players.findIndex((p) => G.mine(p));
+      restart();
+      if (G.net.online && me > 0) root.rotation.y = Math.PI / 2 + (Math.PI / 2) * seats[me];
+    },
+    allowed(a, from) {
+      if (a.t === 'new') return over || from === G.net.myId;
+      const p = cur();
+      return p.id === from || (p.bot && from === G.net.myId);
+    },
+    async apply(a) {
+      if (a.t === 'new') { restart(); return; }
+      if (a.n !== step || over) return;
+      if (a.t === 'roll' && !rolled) { step++; await doRoll(a.v); }
+      else if (a.t === 'move' && rolled && canMove(turn, a.k, dice)) { step++; clearRings(); await doMove(a.k); }
     },
   };
 })();
