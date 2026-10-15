@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 
 import '../chat.dart';
+import '../clay.dart';
 import '../data.dart';
 import '../filters.dart';
 import 'camera.dart';
@@ -68,8 +69,109 @@ class MemoriesPage extends StatelessWidget {
             ),IconButton(tooltip: 'Camera with filters', icon: const Icon(Icons.camera_alt_outlined), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CameraPage())))]),
           floatingActionButton: FloatingActionButton.extended(onPressed: () => _add(context), icon: const Icon(Icons.add_a_photo), label: const Text('Add')),
           body: items.isEmpty
-              ? const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('Her first photos and videos will live here, grouped by month. Tap Add.', textAlign: TextAlign.center)))
+              ? ListView(padding: const EdgeInsets.all(12), children: [
+                  if (!Chat.i.paired) _connectBanner(context),
+                  const Padding(padding: EdgeInsets.all(32), child: Text('Her first photos and videos will live here, grouped by month. Tap Add.', textAlign: TextAlign.center)),
+                ])
               : ListView(padding: const EdgeInsets.fromLTRB(12, 0, 12, 90), children: [
+                  if (!Chat.i.paired) _connectBanner(context),
+                  for (final g in groups.entries) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
+                      child: Text('${const ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][int.parse(g.key.substring(5)) - 1]} ${g.key.substring(0, 4)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                    ),
+                    GridView.count(
+                      crossAxisCount: 3,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 6,
+                      crossAxisSpacing: 6,
+                      children: g.value.map((m) => _tile(context, m)).toList(),
+                    ),
+                  ],
+                ]),
+        );
+      },
+    );
+  }
+
+  Widget _connectBanner(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 4, bottom: 6),
+        child: ClayButton(
+          color: const Color(0xFFDCCBFF),
+          color2: const Color(0xFFC8E0FF),
+          onTap: () => _syncInfo(context),
+          child: const Row(children: [
+            Text('👨‍👩‍👧', style: TextStyle(fontSize: 30)),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Connect family gallery', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF2E2563))),
+                Text('One time: enter your family code. Then everyone\'s memories appear on every family phone.', style: TextStyle(fontSize: 12, color: Color(0xFF2E2563))),
+              ]),
+            ),
+          ]),
+        ),
+      );
+
+  Future<void> _syncInfo(BuildContext context) async {
+    if (!Chat.i.paired) {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatPage()));
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, set) => AlertDialog(
+          title: Text('Add ${picked.length} memor${picked.length > 1 ? 'ies' : 'y'}'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: cap, decoration: const InputDecoration(labelText: 'Caption', hintText: 'Her first bath…')),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: tag,
+              decoration: const InputDecoration(labelText: 'Milestone'),
+              items: milestones.map((m) => DropdownMenuItem(value: m, child: Text(m.isEmpty ? 'None' : m))).toList(),
+              onChanged: (v) => set(() => tag = v ?? ''),
+            ),
+          ]),
+          actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Save'))],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    for (final x in picked) {
+      final path = await Store.keepFile(x.path, 'memories');
+      final mod = await File(x.path).lastModified().catchError((_) => DateTime.now());
+      await Store.i.addItem('memories', {'id': Store.newId(), 'path': path, 'video': isVideo(path), 'caption': cap.text.trim(), 'tag': tag, 'date': ymd(mod)});
+    }
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${picked.length} saved ♡')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([Store.i, Chat.i]),
+      builder: (context, _) {
+        final items = Store.i.list('memories')..sort((a, b) => (b['date'] ?? '').toString().compareTo((a['date'] ?? '').toString()));
+        final groups = <String, List<Map<String, dynamic>>>{};
+        for (final m in items) {
+          groups.putIfAbsent((m['date'] ?? '').toString().substring(0, 7), () => []).add(m);
+        }
+        return Scaffold(
+          appBar: AppBar(title: const Text('Memories · జ్ఞాపకాలు'), actions: [
+            IconButton(
+              tooltip: 'Share with family',
+              icon: Icon(Chat.i.paired ? Icons.cloud_sync_outlined : Icons.cloud_off_outlined),
+              onPressed: () => _syncInfo(context),
+            ),IconButton(tooltip: 'Camera with filters', icon: const Icon(Icons.camera_alt_outlined), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CameraPage())))]),
+          floatingActionButton: FloatingActionButton.extended(onPressed: () => _add(context), icon: const Icon(Icons.add_a_photo), label: const Text('Add')),
+          body: items.isEmpty
+              ? ListView(padding: const EdgeInsets.all(12), children: [
+                  if (!Chat.i.paired) _connectBanner(context),
+                  const Padding(padding: EdgeInsets.all(32), child: Text('Her first photos and videos will live here, grouped by month. Tap Add.', textAlign: TextAlign.center)),
+                ])
+              : ListView(padding: const EdgeInsets.fromLTRB(12, 0, 12, 90), children: [
+                  if (!Chat.i.paired) _connectBanner(context),
                   for (final g in groups.entries) ...[
                     Padding(
                       padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
