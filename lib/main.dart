@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import 'chat.dart';
 import 'feed_alarm.dart';
+import 'games/games_page.dart';
 import 'moments.dart';
 import 'talk.dart';
 import 'pages/camera.dart';
@@ -201,7 +202,7 @@ class _ShellState extends State<Shell> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [const HomePage(), const MemoriesPage(), const ChatPage(), const SongsPage(), const HealthPage(), const JatakamPage()];
+    final pages = [const HomePage(), const MemoriesPage(), const ChatPage(), const GamesPage(), const SongsPage(), const HealthPage(), const JatakamPage()];
     return Scaffold(
       body: AnimatedSwitcher(duration: const Duration(milliseconds: 250), child: KeyedSubtree(key: ValueKey(tab), child: pages[tab])),
       bottomNavigationBar: NavigationBar(
@@ -216,6 +217,7 @@ class _ShellState extends State<Shell> {
             selectedIcon: const Icon(Icons.chat_bubble),
             label: 'Chat',
           ),
+          const NavigationDestination(icon: Icon(Icons.sports_esports_outlined), selectedIcon: Icon(Icons.sports_esports), label: 'Games'),
           const NavigationDestination(icon: Icon(Icons.music_note_outlined), selectedIcon: Icon(Icons.music_note), label: 'Songs'),
           const NavigationDestination(icon: Icon(Icons.favorite_outline), selectedIcon: Icon(Icons.favorite), label: 'Health'),
           const NavigationDestination(icon: Icon(Icons.nightlight_outlined), selectedIcon: Icon(Icons.nightlight), label: 'Jatakam'),
