@@ -266,7 +266,7 @@ class _FunPageState extends State<FunPage> {
               duration: const Duration(milliseconds: 350),
               child: line == null
                   ? const SizedBox(height: 10)
-                  : Card(
+                  : ClayCard(
                       key: ValueKey(line![0]),
                       color: cs.primaryContainer,
                       child: Padding(

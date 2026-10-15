@@ -9,6 +9,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../clay.dart';
+
 import '../chat.dart';
 import '../data.dart';
 import '../store.dart';
@@ -218,7 +220,7 @@ class _VoicesPageState extends State<VoicesPage> {
               final at = DateTime.fromMillisecondsSinceEpoch((v['at'] as num).toInt());
               final on = playingId == v['id'];
               final secs = (v['secs'] as num?)?.toInt() ?? 0;
-              return Card(
+              return ClayCard(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(8, 8, 4, 8),
                   child: Column(children: [

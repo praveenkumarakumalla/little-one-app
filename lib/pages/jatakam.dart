@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../clay.dart';
+
 import '../data.dart';
 import '../store.dart';
 
@@ -164,7 +166,7 @@ class _JatakamPageState extends State<JatakamPage> {
         _fact(context, 'జన్మ దశ', 'బుధ మహాదశ · 2y 11m'),
       ]),
       const SizedBox(height: 12),
-      Card(
+      ClayCard(
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(children: planets.map((p) {
@@ -216,7 +218,7 @@ class _JatakamPageState extends State<JatakamPage> {
         final head = (b['head'] as List).map((e) => e.toString()).toList();
         return Column(children: (b['rows'] as List).map((r) {
           final row = (r as List).map((e) => e.toString()).toList();
-          return Card(
+          return ClayCard(
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -245,7 +247,7 @@ class _JatakamPageState extends State<JatakamPage> {
         return Column(children: (b['rows'] as List).map((r) {
           final x = (r as List).map((e) => e.toString()).toList();
           final now = today.compareTo(x[1]) >= 0 && today.compareTo(x[2]) < 0;
-          return Card(
+          return ClayCard(
             color: now ? cs.primaryContainer : null,
             child: ListTile(
               title: Text('${x[0]}${b['type'] == 'dashas' ? ' మహాదశ' : ''}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
@@ -259,7 +261,7 @@ class _JatakamPageState extends State<JatakamPage> {
       case 'mantras':
         return Column(children: (b['items'] as List).map((it) {
           final x = (it as List).map((e) => e.toString()).toList();
-          return Card(
+          return ClayCard(
             child: ListTile(
               title: Text(x[2], style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: cs.primary)),
               subtitle: Text('${x[1]}\n${x[3]}'),
@@ -270,7 +272,7 @@ class _JatakamPageState extends State<JatakamPage> {
       case 'names':
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if ((Store.i.d['shortlist'] as List).isNotEmpty)
-            Card(color: cs.primaryContainer, child: Padding(padding: const EdgeInsets.all(12), child: Text('Shortlist ♥  ${(Store.i.d['shortlist'] as List).join(', ')}', style: const TextStyle(fontWeight: FontWeight.w700)))),
+            ClayCard(color: cs.primaryContainer, child: Padding(padding: const EdgeInsets.all(12), child: Text('Shortlist ♥  ${(Store.i.d['shortlist'] as List).join(', ')}', style: const TextStyle(fontWeight: FontWeight.w700)))),
           ...(b['groups'] as List).map((g) {
             final gl = g as List;
             return Padding(

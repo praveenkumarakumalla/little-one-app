@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../clay.dart';
+
 import '../data.dart';
 import '../store.dart';
 import '../voice.dart';
@@ -88,7 +90,7 @@ class CryHistoryPage extends StatelessWidget {
         final unwellWeek = week.where((c) => c['actual'] == 'unwell').length;
 
         Widget stat(String big, String small) => Expanded(
-              child: Card(
+              child: ClayCard(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
                   child: Column(children: [
@@ -133,17 +135,17 @@ class CryHistoryPage extends StatelessWidget {
           appBar: AppBar(title: const Text('ఏడుపు డైరీ · Cry tracker')),
           body: ListView(padding: const EdgeInsets.all(14), children: [
             Row(children: [stat('$today', 'cries today'), stat('${(week.length / 7).toStringAsFixed(1)}', 'per day (7 days)'), stat(avgCalm == null ? '–' : '${avgCalm}m', 'to calm her')]),
-            Card(
+            ClayCard(
               color: cs.primaryContainer,
               child: Padding(padding: const EdgeInsets.all(16), child: Text(insight(), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600))),
             ),
             if (unwellWeek >= 2)
-              Card(
+              ClayCard(
                 color: cs.errorContainer,
                 child: Padding(padding: const EdgeInsets.all(14), child: Text('You marked "unwell" $unwellWeek times this week. Please show her to the paediatrician.')),
               ),
             if (week.length >= 7 * 6)
-              Card(
+              ClayCard(
                 color: cs.errorContainer,
                 child: const Padding(padding: EdgeInsets.all(14), child: Text('She is crying a lot this week. Lots of evening crying is common between 2 weeks and 4 months, but mention it to the doctor to rule out reflux, milk allergy or other problems.')),
               ),
@@ -171,7 +173,7 @@ class CryHistoryPage extends StatelessWidget {
                     final a = c['actual'] == null ? null : actualOf(c['actual'].toString());
                     final dur = c['calmAt'] == null ? '' : ' · calm in ${(((c['calmAt'] as num) - (c['at'] as num)) / 60000).round()} min';
                     final sf = c['sinceFeed'] == null ? '' : ' · ${hmDur((c['sinceFeed'] as num).toInt())} after feed';
-                    return Card(
+                    return ClayCard(
                       child: ListTile(
                         leading: Text(a?[1] ?? '😢', style: const TextStyle(fontSize: 28)),
                         title: Text(a == null ? '${hm(t)} · tap: what calmed her?' : '${hm(t)} · ${a[3]}', style: const TextStyle(fontWeight: FontWeight.w700)),

@@ -135,3 +135,28 @@ class ClayPill extends StatelessWidget {
         child: Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF3A2A35))),
       );
 }
+
+/// Drop-in replacement for [Card] with the clay 3D look.
+class ClayCard extends StatelessWidget {
+  final Color? color;
+  final EdgeInsetsGeometry? margin;
+  final Widget? child;
+  final Clip? clipBehavior;
+  final double? elevation;
+  final ShapeBorder? shape;
+  const ClayCard({super.key, this.color, this.margin, this.child, this.clipBehavior, this.elevation, this.shape});
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final base = color ?? (dark ? const Color(0xFF2A1E31) : Colors.white);
+    final c2 = color == null ? (dark ? const Color(0xFF241A2A) : const Color(0xFFFFF0F6)) : Clay.shade(base, dark ? -0.03 : -0.04);
+    return Padding(
+      padding: margin ?? const EdgeInsets.symmetric(vertical: 8),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Clay(color: base, color2: c2, radius: 24, depth: 6, padding: EdgeInsets.zero, child: child ?? const SizedBox.shrink()),
+      ),
+    );
+  }
+}

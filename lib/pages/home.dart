@@ -525,7 +525,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         builder: (c, sc) => ListView(controller: sc, padding: const EdgeInsets.fromLTRB(18, 0, 18, 24), children: [
           const Center(child: Text('పాప ఎందుకు ఏడుస్తోంది?')),
           const SizedBox(height: 8),
-          Card(
+          ClayCard(
             color: Theme.of(c).colorScheme.primaryContainer,
             child: Padding(
               padding: const EdgeInsets.all(18),
@@ -556,7 +556,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           const Text('Then check these', style: TextStyle(fontWeight: FontWeight.w700)),
           ...r.skip(1).take(5).map((x) => ExpansionTile(title: Text('${x.te} · ${x.en}'), children: [ListTile(title: Text(x.why), subtitle: Text('Try: ${x.todo}'))])),
           const SizedBox(height: 8),
-          Card(
+          ClayCard(
             color: Theme.of(c).colorScheme.errorContainer,
             child: const Padding(
               padding: EdgeInsets.all(14),

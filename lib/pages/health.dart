@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../clay.dart';
+
 import '../data.dart';
 import '../store.dart';
 
@@ -35,7 +37,7 @@ class _Vaccines extends StatelessWidget {
       if (!Store.i.vaxDone(v.key)) { next = v; break; }
     }
     return ListView(padding: const EdgeInsets.all(12), children: [
-      Card(
+      ClayCard(
         color: cs.primaryContainer,
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -60,7 +62,7 @@ class _Vaccines extends StatelessWidget {
           else if (diff <= 7) { label = diff == 0 ? 'Today' : 'In $diff days'; col = Colors.orange; }
           else { label = 'In ${diff < 60 ? '$diff days' : '${(diff / 30.44).round()} months'}'; }
         } else if (done) { label = 'Done'; col = Colors.teal; }
-        return Card(
+        return ClayCard(
           child: ExpansionTile(
             shape: const RoundedRectangleBorder(side: BorderSide.none),
             leading: Checkbox(value: done, onChanged: (x) => Store.i.toggleVax(v.key, x == true)),
@@ -86,7 +88,7 @@ class _Vaccines extends StatelessWidget {
           ),
         );
       }),
-      Card(
+      ClayCard(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
@@ -144,7 +146,7 @@ class _Events extends StatelessWidget {
     final up = items.where((e) => e['date'].toString().compareTo(today) >= 0).toList(), past = items.where((e) => e['date'].toString().compareTo(today) < 0).toList();
     Widget row(Map<String, dynamic> e) {
       final d = DateTime.parse(e['date'].toString());
-      return Card(
+      return ClayCard(
         child: ListTile(
           leading: CircleAvatar(child: Text('${d.day}\n${months3[d.month - 1]}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800))),
           title: Text(e['title'].toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -195,7 +197,7 @@ class _NotesState extends State<_Notes> {
       ),
       ...notes.map((n) {
         final at = DateTime.fromMillisecondsSinceEpoch((n['at'] as num).toInt());
-        return Card(
+        return ClayCard(
           child: ListTile(
             title: Text(n['text'].toString()),
             subtitle: Text('${dmy(at)} ${hm(at)} · ${n['tag']}'),
@@ -236,9 +238,9 @@ class _Growth extends StatelessWidget {
       floatingActionButton: FloatingActionButton(onPressed: () => _add(context), child: const Icon(Icons.add)),
       body: ListView(padding: const EdgeInsets.fromLTRB(12, 12, 12, 90), children: [
         if (wts.length >= 2)
-          Card(child: Padding(padding: const EdgeInsets.all(16), child: SizedBox(height: 160, child: CustomPaint(painter: _LinePainter(wts, Theme.of(context).colorScheme.primary), child: Container())))),
+          ClayCard(child: Padding(padding: const EdgeInsets.all(16), child: SizedBox(height: 160, child: CustomPaint(painter: _LinePainter(wts, Theme.of(context).colorScheme.primary), child: Container())))),
         if (g.isEmpty) const Padding(padding: EdgeInsets.all(20), child: Text('Add her weight, length and head size after each doctor visit. Tap +.')),
-        ...g.reversed.map((x) => Card(
+        ...g.reversed.map((x) => ClayCard(
               child: ListTile(
                 title: Text([if (x['wt'] != null) '${x['wt']} kg', if (x['ht'] != null) '${x['ht']} cm long', if (x['hc'] != null) 'head ${x['hc']} cm'].join(' · ')),
                 subtitle: Text(x['date'].toString()),

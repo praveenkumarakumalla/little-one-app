@@ -8,6 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
+import '../clay.dart';
+
 import '../store.dart';
 import '../voice.dart';
 
@@ -79,7 +81,7 @@ class _SongsPageState extends State<SongsPage> {
         final title = (mantras ? it['t'] : it['te']).toString();
         final hasFile = Store.i.songFile(id) != null;
         final playing = Voice.i.musicOn && Voice.i.nowPlaying == title;
-        return Card(
+        return ClayCard(
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

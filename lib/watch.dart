@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
+import 'clay.dart';
+
 import 'bg.dart';
 import 'cry_sound.dart';
 import 'data.dart';
@@ -354,7 +356,7 @@ class CryLiveCard extends StatelessWidget {
         final cs = Theme.of(context).colorScheme;
         final top = e.reasons.isEmpty ? null : e.reasons.first;
         const acts = [['hungry', '🍼 పాలు పడుతున్నా'], ['burp', '🫧 తేన్పు'], ['nappy', '🧷 డైపర్ మార్చా'], ['cuddle', '🤗 ఎత్తుకున్నా'], ['sleep', '😴 నిద్ర పుచ్చుతున్నా']];
-        return Card(
+        return ClayCard(
           color: cs.errorContainer,
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -398,7 +400,7 @@ class WatchPage extends StatelessWidget {
         return Scaffold(
           appBar: AppBar(title: const Text('నిద్ర కాపలా · Sleep watch')),
           body: ListView(padding: const EdgeInsets.all(16), children: [
-            Card(
+            ClayCard(
               child: Padding(
                 padding: const EdgeInsets.all(18),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -444,7 +446,7 @@ class WatchPage extends StatelessWidget {
             const SizedBox(height: 8),
             OutlinedButton.icon(onPressed: Bg.askBattery, icon: const Icon(Icons.battery_saver), label: const Text('Phone stops listening? Allow "no battery limits"')),
             if (s.openCry != null && w.ep == null)
-              Card(
+              ClayCard(
                 color: cs.primaryContainer,
                 child: ListTile(
                   leading: const Text('😢', style: TextStyle(fontSize: 26)),

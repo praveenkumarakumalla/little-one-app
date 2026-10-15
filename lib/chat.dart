@@ -15,6 +15,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
+import 'clay.dart';
+
 import 'data.dart';
 import 'store.dart';
 
@@ -1141,12 +1143,12 @@ class _PairViewState extends State<_PairView> {
         const Text('A private chat for your family', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
         const SizedBox(height: 6),
         Text('Up to 10 people. Text, emojis, photos, videos and documents — all locked with your secret group code (end-to-end encrypted). Saved on every phone. Free, no sign-up.', textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant)),
-        if (Chat.i.notice != null) Card(color: cs.errorContainer, child: Padding(padding: const EdgeInsets.all(12), child: Text(Chat.i.notice!))),
+        if (Chat.i.notice != null) ClayCard(color: cs.errorContainer, child: Padding(padding: const EdgeInsets.all(12), child: Text(Chat.i.notice!))),
         const SizedBox(height: 20),
         TextField(controller: _name, decoration: const InputDecoration(labelText: 'Your name', border: OutlineInputBorder())),
         Wrap(spacing: 6, children: _names.map((n) => ActionChip(label: Text(n), onPressed: () => setState(() => _name.text = n))).toList()),
         const SizedBox(height: 18),
-        Card(
+        ClayCard(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1166,7 +1168,7 @@ class _PairViewState extends State<_PairView> {
             ]),
           ),
         ),
-        Card(
+        ClayCard(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
