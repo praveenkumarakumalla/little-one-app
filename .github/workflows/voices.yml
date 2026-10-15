@@ -1,0 +1,59 @@
+name: Make baby voices
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "samples or all"
+        default: samples
+      voice:
+        description: "A, B or C"
+        default: B
+      only:
+        description: "comma-separated keys (optional)"
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  voices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install voice AI
+        run: |
+          set -o pipefail
+          sudo apt-get install -y ffmpeg > /dev/null
+          pip install torch --index-url https://download.pytorch.org/whl/cpu 2>&1 | tail -n 3 | tee voices.log
+          pip install git+https://github.com/huggingface/parler-tts.git soundfile 2>&1 | tail -n 5 | tee -a voices.log
+
+      - name: Make voices
+        run: |
+          set -o pipefail
+          python tool/voices/make_voices.py "${{ inputs.mode }}" "${{ inputs.voice }}" "${{ inputs.only }}" 2>&1 | tee -a voices.log
+
+      - name: Report errors
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          t=open("voices.log",encoding="utf-8",errors="replace").read()[-7000:]
+          for i in range(0,len(t),3500):
+              c=t[i:i+3500].replace("%","%25").replace("\r","").replace("\n","%0A")
+              print(f"::error title=voices-log-{i//3500}::{c}")
+          PY
+
+      - name: Save voices to the repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A voice_samples assets/voice 2>/dev/null || true
+          git commit -m "Baby voices: ${{ inputs.mode }} ${{ inputs.voice }} [skip ci]" || exit 0
+          git pull --rebase
+          git push
