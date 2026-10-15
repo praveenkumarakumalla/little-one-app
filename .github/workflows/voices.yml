@@ -31,7 +31,7 @@ jobs:
         run: |
           set -o pipefail
           sudo apt-get install -y ffmpeg > /dev/null
-          pip install torch --index-url https://download.pytorch.org/whl/cpu 2>&1 | tail -n 3 | tee voices.log
+          pip install torch==2.5.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cpu 2>&1 | tail -n 3 | tee voices.log
           pip install git+https://github.com/huggingface/parler-tts.git soundfile 2>&1 | tail -n 5 | tee -a voices.log
 
       - name: Make voices
