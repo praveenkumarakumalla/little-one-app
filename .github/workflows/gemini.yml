@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Make voices
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.LITTLE_ONE }}
         run: |
           sudo apt-get install -y ffmpeg > /dev/null
           python3 tool/voices/gemini_voices.py "${{ inputs.mode }}" "${{ inputs.voice }}" "${{ inputs.shift }}"
