@@ -1,0 +1,36 @@
+name: Collect fart sounds
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  farts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect CC0 recordings
+        run: |
+          set -o pipefail
+          sudo apt-get install -y ffmpeg > /dev/null
+          python3 tool/farts/get_farts.py 2>&1 | tee farts.log
+      - name: Report errors
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          t=open("farts.log",encoding="utf-8",errors="replace").read()[-7000:]
+          for i in range(0,len(t),3500):
+              c=t[i:i+3500].replace("%","%25").replace("\r","").replace("\n","%0A")
+              print(f"::error title=farts-log-{i//3500}::{c}")
+          PY
+      - name: Save to the repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A assets/farts
+          git commit -m "Real fart sounds (CC0, Freesound) [skip ci]" || exit 0
+          git pull --rebase
+          git push
