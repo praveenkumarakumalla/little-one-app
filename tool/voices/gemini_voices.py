@@ -40,42 +40,46 @@ def find_audio(obj):
     return None
 
 
+EXHAUSTED = set()
+NEW_MODELS = ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts", "gemini-3.1-flash-tts-preview"]
+OLD_MODELS = ["gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts"]
+
+
 def tts(text, voice):
+    """Tries each Gemini TTS model; a model whose free daily limit is used up is skipped."""
     errors = []
-    # 1) current Interactions API
-    for model in ("gemini-3.8-flash-tts", "gemini-3.1-flash-tts-preview"):
+    for model in NEW_MODELS + OLD_MODELS:
+        if model in EXHAUSTED:
+            continue
         try:
-            res = post("https://generativelanguage.googleapis.com/v1beta/interactions", {
-                "model": model,
-                "input": [{"type": "user_input", "content": [{"type": "text", "text": text, "annotations": [{"type": "speech_metadata", "style": STYLE}]}]}],
-                "response_format": {"type": "audio"},
-                "generation_config": {"speech_config": [{"voice": voice}]},
-            })
+            if model in NEW_MODELS:
+                res = post("https://generativelanguage.googleapis.com/v1beta/interactions", {
+                    "model": model,
+                    "input": [{"type": "user_input", "content": [{"type": "text", "text": text, "annotations": [{"type": "speech_metadata", "style": STYLE}]}]}],
+                    "response_format": {"type": "audio"},
+                    "generation_config": {"speech_config": [{"voice": voice}]},
+                })
+            else:
+                res = post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", {
+                    "contents": [{"parts": [{"text": f"Say this as {STYLE}: {text}"}]}],
+                    "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}}},
+                })
             a = find_audio(res)
             if a:
-                return a
-            errors.append(f"{model}: no audio in {str(res)[:300]}")
-        except urllib.error.HTTPError as e:
-            msg = e.read().decode(errors="replace")[:400]
-            if e.code == 429:
-                raise RuntimeError("LIMIT " + msg)
-            errors.append(f"{model}: {e.code} {msg}")
-    # 2) older generateContent API
-    for model in ("gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts"):
-        try:
-            res = post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", {
-                "contents": [{"parts": [{"text": f"Say this as {STYLE}: {text}"}]}],
-                "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}}},
-            })
-            a = find_audio(res)
-            if a:
+                print(f"::notice title=gemini::  via {model}")
                 return a
             errors.append(f"{model}: no audio")
         except urllib.error.HTTPError as e:
-            msg = e.read().decode(errors="replace")[:400]
+            msg = e.read().decode(errors="replace")[:300]
             if e.code == 429:
-                raise RuntimeError("LIMIT " + msg)
+                EXHAUSTED.add(model)
+                print(f"::warning title=gemini::{model} daily limit used up")
+                continue
             errors.append(f"{model}: {e.code} {msg}")
+        except Exception as e:
+            errors.append(f"{model}: {e}")
+    if len(EXHAUSTED) == len(NEW_MODELS + OLD_MODELS):
+        raise RuntimeError("LIMIT all models used up for today")
     raise RuntimeError(" | ".join(errors))
 
 
