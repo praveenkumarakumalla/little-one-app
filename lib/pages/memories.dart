@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 
 import '../data.dart';
+import '../filters.dart';
+import 'camera.dart';
 import '../store.dart';
 
 const milestones = ['', 'First smile', 'First bath', 'Namakaranam', 'Barasala', 'Ashlesha shanti', 'Annaprasana', 'First tooth', 'First word', 'First steps', 'Aksharabhyasam', 'Birthday', 'Festival'];
@@ -57,7 +59,7 @@ class MemoriesPage extends StatelessWidget {
           groups.putIfAbsent((m['date'] ?? '').toString().substring(0, 7), () => []).add(m);
         }
         return Scaffold(
-          appBar: AppBar(title: const Text('Memories · జ్ఞాపకాలు')),
+          appBar: AppBar(title: const Text('Memories · జ్ఞాపకాలు'), actions: [IconButton(tooltip: 'Camera with filters', icon: const Icon(Icons.camera_alt_outlined), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CameraPage())))]),
           floatingActionButton: FloatingActionButton.extended(onPressed: () => _add(context), icon: const Icon(Icons.add_a_photo), label: const Text('Add')),
           body: items.isEmpty
               ? const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('Her first photos and videos will live here, grouped by month. Tap Add.', textAlign: TextAlign.center)))
@@ -151,7 +153,7 @@ class _ViewerPageState extends State<ViewerPage> {
       body: Center(
         child: m['video'] == true
             ? (v != null && v!.value.isInitialized
-                ? GestureDetector(onTap: () => setState(() => v!.value.isPlaying ? v!.pause() : v!.play()), child: AspectRatio(aspectRatio: v!.value.aspectRatio, child: VideoPlayer(v!)))
+                ? GestureDetector(onTap: () => setState(() => v!.value.isPlaying ? v!.pause() : v!.play()), child: AspectRatio(aspectRatio: v!.value.aspectRatio, child: ColorFiltered(colorFilter: ColorFilter.matrix(filterById(m['filter']?.toString()).m), child: VideoPlayer(v!))))
                 : const CircularProgressIndicator())
             : InteractiveViewer(child: Image.file(File(m['path'].toString()))),
       ),

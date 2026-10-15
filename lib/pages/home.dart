@@ -9,8 +9,12 @@ import '../feed_alarm.dart';
 import '../store.dart';
 import '../voice.dart';
 import '../watch.dart';
+import '../moments.dart';
+import 'camera.dart';
 import 'cries.dart';
+import 'fun.dart';
 import 'profile.dart';
+import 'voices.dart';
 
 /// Soft baby palette — pastel in light mode, deep and gentle in dark mode.
 class _Pal {
@@ -102,7 +106,27 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             ),
           ])),
           const SizedBox(height: 22),
-          _enter(6, Center(child: Text('Made with 💖 for ${s.babyName}', style: TextStyle(color: Theme.of(context).colorScheme.outline, fontSize: 12)))),
+          const SizedBox(height: 18),
+          _enter(6, _section(context, 'సరదా క్షణాలు · Moments')),
+          _enter(6, _cameraBig(context)),
+          const SizedBox(height: 12),
+          _enter(7, Row(children: [
+            Expanded(child: _tile(context, 'peach', '🎙️', 'Baby voices', '${s.list('voices').length} saved · record', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VoicesPage())))),
+            const SizedBox(width: 12),
+            Expanded(child: _tile(context, 'rose', '😂', 'Fun zone', 'Farts, sounds, translator', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FunPage())))),
+          ])),
+          _enter(7, SwitchListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+            value: Moments.enabled,
+            onChanged: (v) async {
+              await s.setSetting('moments', v);
+              await Moments.reschedule();
+            },
+            title: const Text('🔔 Remind me every 2 hours to capture a moment'),
+            subtitle: const Text('8 AM – 8 PM · tap the reminder to open the camera'),
+          )),
+          const SizedBox(height: 14),
+          _enter(8, Center(child: Text('Made with 💖 for ${s.babyName}', style: TextStyle(color: Theme.of(context).colorScheme.outline, fontSize: 12)))),
         ]),
       ),
     );
@@ -395,6 +419,35 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _watchTile(BuildContext context) {
     final w = SleepWatch.i;
     return _tile(context, 'mint', w.on ? '🎧' : '🔇', 'Sleep watch', w.on ? 'Listening now 🟢' : 'Off · tap to open', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WatchPage())));
+  }
+
+  // ───────────── moments ─────────────
+  Widget _cameraBig(BuildContext context) {
+    final p = _pal(context, 'lilac');
+    return _Pressable(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CameraPage())),
+      child: _gradBox(
+        p,
+        pad: const EdgeInsets.fromLTRB(20, 18, 16, 18),
+        Row(children: [
+          Container(
+            width: 62,
+            height: 62,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.6)),
+            child: const Text('📸', style: TextStyle(fontSize: 32)),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Camera', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: p.ink)),
+              Text("90's film · VHS · Polaroid · devil horns 😈 · clown 🤡", style: TextStyle(color: p.ink.withValues(alpha: 0.85))),
+            ]),
+          ),
+          Icon(Icons.chevron_right_rounded, size: 30, color: p.ink),
+        ]),
+      ),
+    );
   }
 
   // ───────────── crying ─────────────

@@ -80,7 +80,7 @@ write(gp, s + "\n")
 # ---- AndroidManifest ----
 mp = os.path.join(A, "app", "src", "main", "AndroidManifest.xml")
 m = read(mp)
-perms = ["INTERNET", "RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "POST_NOTIFICATIONS", "VIBRATE", "WAKE_LOCK", "RECEIVE_BOOT_COMPLETED",
+perms = ["INTERNET", "RECORD_AUDIO", "CAMERA", "MODIFY_AUDIO_SETTINGS", "POST_NOTIFICATIONS", "VIBRATE", "WAKE_LOCK", "RECEIVE_BOOT_COMPLETED",
          "USE_FULL_SCREEN_INTENT", "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_MEDIA_PLAYBACK", "FOREGROUND_SERVICE_MICROPHONE", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "SCHEDULE_EXACT_ALARM", "USE_EXACT_ALARM",
          "ACCESS_NOTIFICATION_POLICY", "READ_MEDIA_AUDIO", "READ_MEDIA_IMAGES", "READ_MEDIA_VIDEO"]
 block = "".join(f'    <uses-permission android:name="android.permission.{p}"/>\n' for p in perms)
@@ -104,6 +104,15 @@ write(mp, m)
 
 # ---- background listening service ----
 svc = '        <service android:name=".ListenService" android:exported="false" android:stopWithTask="true" android:foregroundServiceType="microphone" />\n'
+svc += '''        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+'''
 m = read(mp)
 m = m.replace("    </application>", svc + "    </application>", 1)
 must("ListenService" in m, "could not add ListenService to manifest")

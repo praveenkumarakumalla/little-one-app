@@ -47,6 +47,7 @@ class Store extends ChangeNotifier {
     d.putIfAbsent('shortlist', () => <dynamic>[]);
     d.putIfAbsent('growth', () => <dynamic>[]);
     d.putIfAbsent('cries', () => <dynamic>[]);
+    d.putIfAbsent('voices', () => <dynamic>[]);
     d.putIfAbsent('mala', () => <String, dynamic>{});
     d.putIfAbsent('settings', () => <String, dynamic>{'interval': 150, 'alarm': true, 'sens': 18.0, 'wShh': true, 'wCry': true, 'wLull': true});
   }

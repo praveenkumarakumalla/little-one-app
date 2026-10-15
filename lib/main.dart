@@ -6,6 +6,9 @@ import 'package:permission_handler/permission_handler.dart';
 
 import 'chat.dart';
 import 'feed_alarm.dart';
+import 'moments.dart';
+import 'pages/camera.dart';
+import 'pages/voices.dart';
 import 'pages/health.dart';
 import 'pages/home.dart';
 import 'pages/jatakam.dart';
@@ -24,6 +27,9 @@ Future<void> main() async {
   await Voice.i.init();
   try {
     await Chat.i.init();
+  } catch (_) {}
+  try {
+    await Moments.init();
   } catch (_) {}
   runApp(const LittleOneApp());
 }
@@ -75,6 +81,8 @@ class _ShellState extends State<Shell> {
     _ringSub = Alarm.ringing.listen((set) {
       if (set.alarms.isNotEmpty) _showFeedAlarm();
     });
+    Moments.route.addListener(_openRoute);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openRoute());
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         await _askPermissions();
@@ -90,8 +98,18 @@ class _ShellState extends State<Shell> {
     if (await Permission.scheduleExactAlarm.isDenied) await Permission.scheduleExactAlarm.request();
   }
 
+  void _openRoute() {
+    final r = Moments.route.value;
+    if (r == null) return;
+    Moments.route.value = null;
+    final nav = navKey.currentState;
+    if (nav == null) return;
+    nav.push(MaterialPageRoute(builder: (_) => r == 'voices' ? const VoicesPage() : const CameraPage()));
+  }
+
   @override
   void dispose() {
+    Moments.route.removeListener(_openRoute);
     _ringSub?.cancel();
     super.dispose();
   }
