@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 import '../data.dart';
+import '../face_fx.dart';
 import '../filters.dart';
 import '../store.dart';
 import '../watch.dart';
@@ -20,14 +22,14 @@ class CameraPage extends StatefulWidget {
   State<CameraPage> createState() => _CameraPageState();
 }
 
-class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
+class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   List<CameraDescription> cams = [];
   CameraController? c;
   int camIdx = 0;
   bool video = false, recording = false, busy = false, flashWhite = false;
   FlashMode flash = FlashMode.off;
   int timer = 0, countdown = 0;
-  String tab = 'filters';
+  String tab = 'face';
   PhotoFilter f = filters.first;
   Sticker s = stickers.first;
   List<FaceBox> faces = const [];
@@ -36,6 +38,12 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   DateTime? recStart;
   Timer? recTick;
   bool _watchWasOn = false;
+  FaceFx fx = faceFx.first;
+  FaceState? fstate;
+  int _miss = 0;
+  ui.FragmentShader? shader;
+  bool shaderOk = true;
+  late final AnimationController anim = AnimationController(vsync: this, duration: const Duration(seconds: 60))..repeat();
 
   final _det = FaceDetector(options: FaceDetectorOptions(enableLandmarks: true, performanceMode: FaceDetectorMode.fast, minFaceSize: 0.12));
   bool _detBusy = false;
@@ -46,6 +54,9 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    FaceShader.program().then((p) {
+      if (p != null && mounted) setState(() => shader = p.fragmentShader());
+    });
     _boot();
   }
 
@@ -87,7 +98,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
 
   Future<void> _streamOn() async {
     final ctl = c;
-    if (ctl == null || ctl.value.isStreamingImages || recording || activeSticker.kind == 'none') return;
+    if (ctl == null || ctl.value.isStreamingImages || recording || (activeSticker.kind == 'none' && fx.mode == 0)) return;
     try {
       await ctl.startImageStream(_onFrame);
     } catch (_) {}
@@ -142,9 +153,20 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       }
 
       final out = res
-          .map((fc) => FaceBox(fc.boundingBox, lEye: lm(fc, FaceLandmarkType.leftEye), rEye: lm(fc, FaceLandmarkType.rightEye), nose: lm(fc, FaceLandmarkType.noseBase)).map(map))
+          .map((fc) => FaceBox(fc.boundingBox, lEye: lm(fc, FaceLandmarkType.leftEye), rEye: lm(fc, FaceLandmarkType.rightEye), nose: lm(fc, FaceLandmarkType.noseBase), mouthL: lm(fc, FaceLandmarkType.leftMouth), mouthR: lm(fc, FaceLandmarkType.rightMouth), mouthB: lm(fc, FaceLandmarkType.bottomMouth)).map(map))
           .toList();
-      if (mounted) setState(() => faces = out);
+      final FaceState? st = out.isEmpty ? null : out.reduce((a, b) => a.box.width * a.box.height >= b.box.width * b.box.height ? a : b).state(Size(pw, ph));
+      if (mounted) {
+        setState(() {
+          faces = out;
+          if (st != null) {
+            _miss = 0;
+            fstate = st.lerp(fstate, 0.55);
+          } else if (++_miss > 4) {
+            fstate = null;
+          }
+        });
+      }
     } catch (_) {}
     _detBusy = false;
   }
@@ -166,6 +188,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     recTick?.cancel();
+    anim.dispose();
     c?.dispose();
     _det.close();
     SystemChrome.setPreferredOrientations([]);
@@ -204,7 +227,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       final shot = await ctl.takePicture();
       final st = activeSticker;
       var still = <FaceBox>[];
-      if (st.kind != 'none') {
+      if (st.kind != 'none' || fx.mode != 0) {
         final det = FaceDetector(options: FaceDetectorOptions(enableLandmarks: true, performanceMode: FaceDetectorMode.accurate));
         try {
           final fs = await det.processImage(InputImage.fromFilePath(shot.path));
@@ -213,17 +236,17 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
             return p == null ? null : Offset(p.x.toDouble(), p.y.toDouble());
           }
 
-          still = fs.map((fc) => FaceBox(fc.boundingBox, lEye: lm(fc, FaceLandmarkType.leftEye), rEye: lm(fc, FaceLandmarkType.rightEye), nose: lm(fc, FaceLandmarkType.noseBase))).toList();
+          still = fs.map((fc) => FaceBox(fc.boundingBox, lEye: lm(fc, FaceLandmarkType.leftEye), rEye: lm(fc, FaceLandmarkType.rightEye), nose: lm(fc, FaceLandmarkType.noseBase), mouthL: lm(fc, FaceLandmarkType.leftMouth), mouthR: lm(fc, FaceLandmarkType.rightMouth), mouthB: lm(fc, FaceLandmarkType.bottomMouth))).toList();
         } catch (_) {}
         await det.close();
       }
       final b = Store.i.birth;
       final cap = '${Store.i.babyName} · ${b == null ? dmy(DateTime.now()) : 'Day ${dayNumber(b)}'}';
-      final path = await renderPhoto(shot.path, f, st, still, mirror: front, caption: cap);
+      final path = await renderPhoto(shot.path, f, st, still, mirror: front, caption: cap, fxMode: fx.mode);
       try {
         File(shot.path).deleteSync();
       } catch (_) {}
-      final m = {'id': Store.newId(), 'path': path, 'video': false, 'caption': '${f.emoji} ${f.name}${st.kind != 'none' ? ' ${st.emoji}' : ''}', 'tag': '', 'date': ymd(DateTime.now()), 'cam': true};
+      final m = {'id': Store.newId(), 'path': path, 'video': false, 'caption': '${f.emoji} ${f.name}${fx.mode != 0 ? ' ${fx.emoji} ${fx.name}' : ''}${st.kind != 'none' ? ' ${st.emoji}' : ''}', 'tag': '', 'date': ymd(DateTime.now()), 'cam': true};
       await Store.i.addItem('memories', m);
       lastMemory = m;
       if (mounted) _snack('Saved to Memories 💖');
@@ -331,10 +354,27 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
         child: SizedBox(
           width: pw,
           height: ph,
-          child: Stack(children: [
-            Positioned.fill(child: ColorFiltered(colorFilter: ColorFilter.matrix(f.m), child: CameraPreview(ctl))),
-            Positioned.fill(child: CustomPaint(painter: LiveOverlayPainter(f, activeSticker, faces))),
-          ]),
+          child: AnimatedBuilder(
+            animation: anim,
+            builder: (context, _) {
+              final t = anim.value * 60;
+              Widget pv = ColorFiltered(colorFilter: ColorFilter.matrix(f.m), child: CameraPreview(ctl));
+              final warp = fx.mode != 0 && fstate != null && shader != null && shaderOk;
+              if (warp) {
+                try {
+                  FaceShader.setUniforms(shader!, fx.mode, t, fstate);
+                  pv = ImageFiltered(imageFilter: ui.ImageFilter.shader(shader!), child: pv);
+                } catch (_) {
+                  shaderOk = false;
+                }
+              }
+              return Stack(children: [
+                Positioned.fill(child: pv),
+                Positioned.fill(child: CustomPaint(painter: LiveOverlayPainter(f, activeSticker, faces))),
+                if (fx.mode != 0) Positioned.fill(child: CustomPaint(painter: FaceOverlayPainter(fx.mode, fstate, t))),
+              ]);
+            },
+          ),
         ),
       ),
     );
@@ -382,7 +422,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       child: Column(children: [
         if (!recording) ...[
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            for (final t in [['filters', '🎨 Filters'], ['stickers', '😈 Face fun']])
+            for (final t in [['face', '🤪 Face changer'], ['filters', '🎨 Filters'], ['stickers', '😈 Stickers']])
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: ChoiceChip(
@@ -393,7 +433,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
               ),
           ]),
           const SizedBox(height: 8),
-          SizedBox(height: 88, child: tab == 'filters' ? _filterStrip() : _stickerStrip()),
+          SizedBox(height: 88, child: tab == 'filters' ? _filterStrip() : tab == 'face' ? _faceStrip() : _stickerStrip()),
         ],
         const SizedBox(height: 8),
         Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
@@ -426,7 +466,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
                   ),
           ),
         ]),
-        if (video && !recording) const Padding(padding: EdgeInsets.only(top: 4), child: Text('Video keeps the colour filter when played in Memories (face stickers are for photos)', style: TextStyle(color: Colors.white70, fontSize: 11))),
+        if (video && !recording) const Padding(padding: EdgeInsets.only(top: 4), child: Text('Video keeps the colour filter when played in Memories (face changers & stickers are for photos)', style: TextStyle(color: Colors.white70, fontSize: 11))),
       ]),
     );
   }
@@ -485,6 +525,27 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
             }),
           ],
         ],
+      );
+
+  Widget _faceStrip() => ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        children: faceFx
+            .map((x) => _chip(x.emoji, x.name, fx.mode == x.mode, () async {
+                  setState(() => fx = x);
+                  if (x.mode == 0 && activeSticker.kind == 'none') {
+                    await _streamOff();
+                    setState(() {
+                      faces = const [];
+                      fstate = null;
+                    });
+                  } else {
+                    if (video) setState(() => video = false);
+                    await _streamOn();
+                    if (!shaderOk && mounted) _snack('Face changer needs a newer phone graphics engine 😔');
+                  }
+                }))
+            .toList(),
       );
 
   Widget _stickerStrip() => ListView(

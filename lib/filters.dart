@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 
+import 'face_fx.dart';
 import 'store.dart';
 
 // ───────────────────────── colour matrices ─────────────────────────
@@ -109,12 +110,15 @@ Sticker stickerById(String? id) => stickers.firstWhere((s) => s.id == id, orElse
 /// A face in canvas coordinates.
 class FaceBox {
   final Rect box;
-  final Offset? lEye, rEye, nose;
-  const FaceBox(this.box, {this.lEye, this.rEye, this.nose});
+  final Offset? lEye, rEye, nose, mouthL, mouthR, mouthB;
+  const FaceBox(this.box, {this.lEye, this.rEye, this.nose, this.mouthL, this.mouthR, this.mouthB});
   FaceBox map(Offset Function(Offset) f) {
     final a = f(box.topLeft), b = f(box.bottomRight);
-    return FaceBox(Rect.fromPoints(a, b), lEye: lEye == null ? null : f(lEye!), rEye: rEye == null ? null : f(rEye!), nose: nose == null ? null : f(nose!));
+    Offset? m(Offset? o) => o == null ? null : f(o);
+    return FaceBox(Rect.fromPoints(a, b), lEye: m(lEye), rEye: m(rEye), nose: m(nose), mouthL: m(mouthL), mouthR: m(mouthR), mouthB: m(mouthB));
   }
+
+  FaceState? state(Size size) => FaceState.fromPoints(box: box, lEye: lEye, rEye: rEye, mouthL: mouthL, mouthR: mouthR, mouthB: mouthB, nose: nose, size: size);
 }
 
 void _emoji(Canvas c, String e, Offset center, double size) {
@@ -266,9 +270,9 @@ class LiveOverlayPainter extends CustomPainter {
 }
 
 // ───────────────────────── final photo ─────────────────────────
-/// Applies the filter, effects and stickers to a captured photo and saves a JPEG.
+/// Applies the filter, face changer, effects and stickers to a captured photo and saves a JPEG.
 /// [faces] are in the photo's own pixel coordinates (un-mirrored).
-Future<String> renderPhoto(String srcPath, PhotoFilter f, Sticker s, List<FaceBox> faces, {bool mirror = false, String caption = ''}) async {
+Future<String> renderPhoto(String srcPath, PhotoFilter f, Sticker s, List<FaceBox> faces, {bool mirror = false, String caption = '', int fxMode = 0}) async {
   final bytes = await File(srcPath).readAsBytes();
   final codec = await ui.instantiateImageCodec(bytes);
   final src = (await codec.getNextFrame()).image;
@@ -279,29 +283,42 @@ Future<String> renderPhoto(String srcPath, PhotoFilter f, Sticker s, List<FaceBo
   final bottom = f.polaroid ? w * 0.2 : 0.0;
   final tw = w + border * 2, th = h + border + bottom;
 
+  // 1) colour filter (+ mirror for selfies)
+  final r1 = ui.PictureRecorder();
+  final c1 = Canvas(r1);
+  if (mirror) {
+    c1.translate(w, 0);
+    c1.scale(-1, 1);
+  }
+  c1.drawImageRect(src, Rect.fromLTWH(0, 0, sw, sh), Rect.fromLTWH(0, 0, w, h), Paint()
+    ..colorFilter = ColorFilter.matrix(f.m)
+    ..filterQuality = FilterQuality.high);
+  var base = await r1.endRecording().toImage(w.round(), h.round());
+
+  // 2) face changer warp on the biggest face
+  FaceState? fs;
+  if (fxMode != 0 && faces.isNotEmpty) {
+    final big = faces.reduce((a, b) => a.box.width * a.box.height >= b.box.width * b.box.height ? a : b);
+    fs = big.state(Size(sw, sh));
+    if (fs != null && mirror) fs = fs.mirrored();
+    if (fs != null) base = await FaceShader.warp(base, fxMode, fs);
+  }
+
+  // 3) frame, effects, stickers, overlays
   final rec = ui.PictureRecorder();
   final c = Canvas(rec);
   if (f.polaroid) c.drawRect(Rect.fromLTWH(0, 0, tw, th), Paint()..color = const Color(0xFFF8F5EE));
   c.save();
   c.translate(border, border);
   c.clipRect(Rect.fromLTWH(0, 0, w, h));
-  if (mirror) {
-    c.translate(w, 0);
-    c.scale(-1, 1);
-  }
-  c.drawImageRect(src, Rect.fromLTWH(0, 0, sw, sh), Rect.fromLTWH(0, 0, w, h), Paint()
-    ..colorFilter = ColorFilter.matrix(f.m)
-    ..filterQuality = FilterQuality.high);
-  if (mirror) {
-    c.scale(-1, 1);
-    c.translate(-w, 0);
-  }
+  c.drawImage(base, Offset.zero, Paint()..filterQuality = FilterQuality.high);
   drawEffects(c, Size(w, h), f, seed: DateTime.now().millisecond);
   if (s.kind != 'none') {
     for (final fb in faces) {
       drawSticker(c, fb.map((o) => Offset(mirror ? w - o.dx * k : o.dx * k, o.dy * k)), s);
     }
   }
+  drawFaceOverlay(c, Size(w, h), fxMode, fs, 0.6);
   c.restore();
   if (f.polaroid) {
     final tp = TextPainter(
@@ -319,6 +336,7 @@ Future<String> renderPhoto(String srcPath, PhotoFilter f, Sticker s, List<FaceBo
   final file = File('${dir.path}/${Store.newId()}_${f.id}.jpg');
   await file.writeAsBytes(jpg, flush: true);
   src.dispose();
+  base.dispose();
   out.dispose();
   return file.path;
 }

@@ -287,7 +287,8 @@ class SleepWatch extends ChangeNotifier {
     if (e.id.isNotEmpty) await Store.i.updateCry(e.id, {'tried': key});
     _log('You: ${actualOf(key)[3]}');
     notifyListeners();
-    await _speak('సరే అమ్మా.');
+    _muteUntil = DateTime.now().add(const Duration(seconds: 3));
+    if (!await Voice.i.clip('ok')) await _speak('సరే అమ్మా.');
   }
 
   Future<void> playLullaby() async {
@@ -314,7 +315,10 @@ class SleepWatch extends ChangeNotifier {
     if (on) await Bg.update('🎧 Little One is listening', e.tried == null && e.id.isNotEmpty ? 'She cried at ${hm(e.start)} and calmed down. Open to tell what worked.' : 'Sleep watch is on. It will speak if she cries.');
     state = 'Listening… room is quiet';
     notifyListeners();
-    if (!quiet && e.phase == 1) await _speak('పాప సర్దుకుంది. బాగా చేశారు!', volume: 0.45);
+    if (!quiet && e.phase == 1) {
+      _muteUntil = DateTime.now().add(const Duration(seconds: 4));
+      if (!await Voice.i.clip('calm', volume: 0.45)) await _speak('పాప సర్దుకుంది. బాగా చేశారు!', volume: 0.45);
+    }
   }
 
   Future<void> calmNow() => _calm(manual: true);

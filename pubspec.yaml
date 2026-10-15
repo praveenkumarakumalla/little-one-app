@@ -46,10 +46,12 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  shaders:
+    - shaders/face_warp.frag
   assets:
     - assets/patrika.json
     - assets/songs.json
     - assets/chart.json
     - assets/audio/music_box.wav
     - assets/audio/alarm.wav
-    - assets/sounds/
+    - assets/farts/

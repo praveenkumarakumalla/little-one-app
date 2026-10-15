@@ -1,41 +1,33 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../voice.dart';
 
 class FunSound {
   final String file, emoji, name;
-  final Color color;
-  const FunSound(this.file, this.emoji, this.name, this.color);
+  final double secs;
+  final List<Map<String, dynamic>> sources;
+  const FunSound(this.file, this.emoji, this.name, this.secs, this.sources);
 }
 
-const farts = [
-  FunSound('fart_classic', '💨', 'The Classic', Color(0xFFFFE08A)),
-  FunSound('fart_squeaker', '🐭', 'Squeaker', Color(0xFFFFC9DE)),
-  FunSound('fart_machine_gun', '🔫', 'Machine Gun', Color(0xFFC9E7FF)),
-  FunSound('fart_tuba', '🎺', 'Tuba Blast', Color(0xFFFFD2B8)),
-  FunSound('fart_long_goodbye', '👋', 'Long Goodbye', Color(0xFFD9D2FF)),
-  FunSound('fart_tiny_toot', '🐣', 'Tiny Toot', Color(0xFFD5F5E8)),
-  FunSound('fart_wet_one', '💦', 'Wet One', Color(0xFFBFEAF5)),
-  FunSound('fart_rocket', '🚀', 'Rocket Launch', Color(0xFFFFCACA)),
-  FunSound('fart_duck', '🦆', 'Duck Fart', Color(0xFFFFF0B3)),
-  FunSound('fart_silent_deadly', '☠️', 'Silent but Deadly', Color(0xFFE2E2E2)),
-];
+const _colors = [Color(0xFFFFE08A), Color(0xFFFFC9DE), Color(0xFFC9E7FF), Color(0xFFFFD2B8), Color(0xFFD9D2FF), Color(0xFFD5F5E8), Color(0xFFBFEAF5), Color(0xFFFFCACA), Color(0xFFFFF0B3), Color(0xFFE2E2E2)];
 
-const funny = [
-  FunSound('fun_boing', '🤸', 'Boing!', Color(0xFFFFE08A)),
-  FunSound('fun_slide_up', '⬆️', 'Whistle Up', Color(0xFFC9E7FF)),
-  FunSound('fun_slide_down', '⬇️', 'Whistle Down', Color(0xFFD9D2FF)),
-  FunSound('fun_ba_dum_tss', '🥁', 'Ba-dum-tss', Color(0xFFFFD2B8)),
-  FunSound('fun_pop', '🍾', 'Pop!', Color(0xFFD5F5E8)),
-  FunSound('fun_cuckoo', '🐦', 'Cuckoo', Color(0xFFFFF0B3)),
-  FunSound('fun_clown_horn', '🤡', 'Clown Horn', Color(0xFFFFC9DE)),
-  FunSound('fun_sad_trombone', '😭', 'Sad Trombone', Color(0xFFE2E2E2)),
-];
+Future<List<FunSound>> loadFarts() async {
+  try {
+    final l = jsonDecode(await rootBundle.loadString('assets/farts/credits.json')) as List;
+    return l
+        .map((e) => FunSound(e['file'].toString(), e['emoji'].toString(), e['name'].toString(), (e['secs'] as num).toDouble(), ((e['sources'] as List?) ?? []).map((x) => Map<String, dynamic>.from(x as Map)).toList()))
+        .toList();
+  } catch (_) {
+    return [];
+  }
+}
 
 /// [Telugu, English]
 const babyLines = [
@@ -73,6 +65,27 @@ class _FunPageState extends State<FunPage> {
   Timer? prankTimer;
   bool translating = false;
   List<String>? line;
+  int lineIdx = 0;
+
+  Future<void> _sayLine(int i) async {
+    final key = 't${(i + 1).toString().padLeft(2, '0')}';
+    if (!await Voice.i.clip(key)) await Voice.i.say(babyLines[i][0], lat: babyLines[i][1], pitch: 1.9);
+  }
+  List<FunSound> farts = [];
+  String? playing;
+
+  @override
+  void initState() {
+    super.initState();
+    loadFarts().then((l) {
+      if (mounted) setState(() => farts = l);
+    });
+    for (final p in _pool) {
+      p.onPlayerComplete.listen((_) {
+        if (mounted) setState(() => playing = null);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -85,12 +98,44 @@ class _FunPageState extends State<FunPage> {
 
   Future<void> _play(String file) async {
     HapticFeedback.lightImpact();
+    if (playing == file) {
+      for (final p in _pool) {
+        await p.stop();
+      }
+      setState(() => playing = null);
+      return;
+    }
     final p = _pool[_next];
     _next = (_next + 1) % _pool.length;
+    setState(() => playing = file);
     try {
       await p.stop();
-      await p.play(AssetSource('sounds/$file.m4a'), volume: 1.0);
+      await p.play(AssetSource('farts/$file.m4a'), volume: 1.0);
     } catch (_) {}
+  }
+
+  void _credits() {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (c) => DraggableScrollableSheet(
+        expand: false,
+        builder: (c, sc) => ListView(controller: sc, padding: const EdgeInsets.fromLTRB(16, 0, 16, 24), children: [
+          const Text('Sound credits', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+          const Text('Real recordings from Freesound.org, all CC0 (public domain). Thank you! 🙏'),
+          const SizedBox(height: 8),
+          for (final f in farts)
+            for (final src in f.sources)
+              ListTile(
+                dense: true,
+                title: Text('${f.emoji} ${f.name}: ${src['title']}'),
+                subtitle: Text('by ${src['by']} · ${src['license']}'),
+                onTap: () => launchUrl(Uri.parse(src['url'].toString()), mode: LaunchMode.externalApplication),
+              ),
+        ]),
+      ),
+    );
   }
 
   void _prank() {
@@ -101,7 +146,7 @@ class _FunPageState extends State<FunPage> {
       setState(() => prank--);
       if (prank <= 0) {
         t.cancel();
-        _play(farts[_rnd.nextInt(farts.length)].file);
+        if (farts.isNotEmpty) _play(farts[_rnd.nextInt(farts.length)].file);
       }
     });
   }
@@ -113,13 +158,15 @@ class _FunPageState extends State<FunPage> {
     });
     HapticFeedback.mediumImpact();
     await Future.delayed(const Duration(milliseconds: 2200));
-    final l = babyLines[_rnd.nextInt(babyLines.length)];
+    final i = _rnd.nextInt(babyLines.length);
+    final l = babyLines[i];
     if (!mounted) return;
     setState(() {
       translating = false;
       line = l;
+      lineIdx = i;
     });
-    await Voice.i.say(l[0], lat: l[1], pitch: 1.9);
+    await _sayLine(i);
   }
 
   Widget _grid(List<FunSound> list) => GridView.count(
@@ -128,47 +175,52 @@ class _FunPageState extends State<FunPage> {
         physics: const NeverScrollableScrollPhysics(),
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
-        childAspectRatio: 0.95,
-        children: list
-            .map((x) => _Bouncy(
-                  onTap: () => _play(x.file),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: x.color,
-                      borderRadius: BorderRadius.circular(22),
-                      boxShadow: [BoxShadow(color: x.color.withValues(alpha: 0.6), blurRadius: 10, offset: const Offset(0, 4))],
-                    ),
-                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Text(x.emoji, style: const TextStyle(fontSize: 36)),
-                      const SizedBox(height: 4),
-                      Text(x.name, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF3A2A35))),
-                    ]),
-                  ),
-                ))
-            .toList(),
+        childAspectRatio: 0.9,
+        children: [
+          for (var i = 0; i < list.length; i++)
+            _Bouncy(
+              onTap: () => _play(list[i].file),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color: _colors[i % _colors.length],
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: playing == list[i].file ? const Color(0xFFF2668B) : Colors.transparent, width: 3),
+                  boxShadow: [BoxShadow(color: _colors[i % _colors.length].withValues(alpha: 0.6), blurRadius: 10, offset: const Offset(0, 4))],
+                ),
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Text(playing == list[i].file ? '🔊' : list[i].emoji, style: const TextStyle(fontSize: 34)),
+                  const SizedBox(height: 4),
+                  Text(list[i].name, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF3A2A35))),
+                  Text('${list[i].secs.round()} s', style: const TextStyle(fontSize: 10, color: Color(0xFF6A5A65))),
+                ]),
+              ),
+            ),
+        ],
       );
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return DefaultTabController(
-      length: 3,
+      length: 2,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('సరదా · Fun zone 😂'),
-          bottom: const TabBar(tabs: [Tab(text: '💨 Farts'), Tab(text: '🎉 Funny'), Tab(text: '👶 Translator')]),
+          bottom: const TabBar(tabs: [Tab(text: '💨 Farts'), Tab(text: '👶 Translator')]),
         ),
         body: TabBarView(children: [
           ListView(padding: const EdgeInsets.all(16), children: [
-            Text('Top 10 farts 💨', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: cs.onSurface)),
+            Text('${farts.length} real farts 💨', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: cs.onSurface)),
             const SizedBox(height: 10),
+            if (farts.isEmpty) const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator())),
             _grid(farts),
             const SizedBox(height: 16),
             Row(children: [
               Expanded(
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(padding: const EdgeInsets.all(14)),
-                  onPressed: () => _play(farts[_rnd.nextInt(farts.length)].file),
+                  onPressed: farts.isEmpty ? null : () => _play(farts[_rnd.nextInt(farts.length)].file),
                   icon: const Text('🎲', style: TextStyle(fontSize: 20)),
                   label: const Text('Random fart'),
                 ),
@@ -185,13 +237,7 @@ class _FunPageState extends State<FunPage> {
             ]),
             const SizedBox(height: 8),
             Text('Prank: tap, hide the phone near Nanna or Thatayya, and wait 😂', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-          ]),
-          ListView(padding: const EdgeInsets.all(16), children: [
-            Text('Funny sounds 🎉', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: cs.onSurface)),
-            const SizedBox(height: 10),
-            _grid(funny),
-            const SizedBox(height: 10),
-            Text('Tip: use Ba-dum-tss after Nanna\'s jokes 🥁', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            TextButton(onPressed: farts.isEmpty ? null : _credits, child: const Text('Sound credits')),
           ]),
           ListView(padding: const EdgeInsets.all(20), children: [
             const SizedBox(height: 10),
@@ -231,7 +277,7 @@ class _FunPageState extends State<FunPage> {
                           Text('"${line![0]}"', textAlign: TextAlign.center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
                           const SizedBox(height: 8),
                           Text(line![1], textAlign: TextAlign.center),
-                          TextButton.icon(onPressed: () => Voice.i.say(line![0], lat: line![1], pitch: 1.9), icon: const Icon(Icons.volume_up), label: const Text('Say it again')),
+                          TextButton.icon(onPressed: () => _sayLine(lineIdx), icon: const Icon(Icons.volume_up), label: const Text('Say it again')),
                         ]),
                       ),
                     ),

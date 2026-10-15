@@ -1,4 +1,5 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
 
@@ -9,11 +10,35 @@ class Voice {
   final FlutterTts _tts = FlutterTts();
   final AudioPlayer music = AudioPlayer();
   final AudioPlayer fx = AudioPlayer();
+  final AudioPlayer clipPlayer = AudioPlayer();
+  final Set<String> clips = {};
   String? _lang;
   bool speaking = false;
   String nowPlaying = '';
 
+  /// Recorded baby-voice clips (assets/voice/<key>.m4a) — natural voice, used instead of the robot voice.
+  bool hasClip(String key) => clips.contains(key);
+
+  Future<bool> clip(String key, {double volume = 1.0}) async {
+    if (!clips.contains(key)) return false;
+    try {
+      speaking = true;
+      await clipPlayer.stop();
+      await clipPlayer.setVolume(volume);
+      await clipPlayer.play(AssetSource('voice/$key.m4a'));
+      await clipPlayer.onPlayerComplete.first.timeout(const Duration(seconds: 20));
+    } catch (_) {}
+    speaking = false;
+    return true;
+  }
+
   Future<void> init() async {
+    try {
+      final m = await AssetManifest.loadFromAssetBundle(rootBundle);
+      for (final a in m.listAssets()) {
+        if (a.startsWith('assets/voice/') && a.endsWith('.m4a')) clips.add(a.substring(13, a.length - 4));
+      }
+    } catch (_) {}
     for (final l in ['te-IN', 'hi-IN', 'en-IN']) {
       try {
         final ok = await _tts.isLanguageAvailable(l);
@@ -74,9 +99,17 @@ class Voice {
     speaking = false;
   }
 
-  Future<void> babyAsksMilk() => say('అమ్మా… పాలు కావాలి!', dev: 'अम्मा… पालु कावालि!', lat: 'Amma… paalu kaavaali!', pitch: 1.8);
-  Future<void> okayAmma() => say('సరే అమ్మా! థాంక్యూ అమ్మా', dev: 'सरे अम्मा! थैंक्यू अम्मा', lat: 'Sare amma! Thank you amma', pitch: 1.8);
-  Future<void> shh() => say('బేబీ బజ్జో ఉంది, అరవకండి!', dev: 'बेबी बज्जो उंदी, अरवकंडि!', lat: 'Baby bajjo undi, aravakandi!', pitch: 1.1);
+  Future<void> babyAsksMilk() async {
+    if (!await clip('milk')) await say('అమ్మా… పాలు కావాలి!', dev: 'अम्मा… पालु कावालि!', lat: 'Amma… paalu kaavaali!', pitch: 1.8);
+  }
+
+  Future<void> okayAmma() async {
+    if (!await clip('okay_amma')) await say('సరే అమ్మా! థాంక్యూ అమ్మా', dev: 'सरे अम्मा! थैंक्यू अम्मा', lat: 'Sare amma! Thank you amma', pitch: 1.8);
+  }
+
+  Future<void> shh() async {
+    if (!await clip('shh')) await say('బేబీ బజ్జో ఉంది, అరవకండి!', dev: 'बेबी बज्जो उंदी, अरवकंडि!', lat: 'Baby bajjo undi, aravakandi!', pitch: 1.1);
+  }
 
   Future<void> chime() async {
     try {

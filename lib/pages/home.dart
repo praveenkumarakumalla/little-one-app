@@ -10,7 +10,6 @@ import '../store.dart';
 import '../voice.dart';
 import '../watch.dart';
 import '../talk.dart';
-import 'camera.dart';
 import 'cries.dart';
 import 'fun.dart';
 import 'profile.dart';
@@ -92,33 +91,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           if (s.openCry != null && SleepWatch.i.ep == null) _enter(2, _openCryCard(context)),
           _enter(2, _feedCard(context)),
           const SizedBox(height: 18),
-          _enter(3, _section(context, 'ఈ రోజు · Today')),
-          _enter(3, _todayRow(context)),
-          const SizedBox(height: 18),
-          _enter(4, _section(context, 'ఏడుపు · Crying')),
-          _enter(4, _cryBig(context)),
-          const SizedBox(height: 12),
-          _enter(5, Row(children: [
-            Expanded(child: _watchTile(context)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _tile(context, 'sky', '📊', 'Cry tracker', '${s.countCries()} today · pattern', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CryHistoryPage()))),
-            ),
-          ])),
-          const SizedBox(height: 22),
-          const SizedBox(height: 18),
-          _enter(6, _section(context, 'సరదా క్షణాలు · Moments')),
-          _enter(6, _cameraBig(context)),
-          const SizedBox(height: 12),
-          _enter(7, Row(children: [
-            Expanded(child: _tile(context, 'peach', '🎙️', 'Baby voices', '${s.list('voices').length} saved · record', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VoicesPage())))),
-            const SizedBox(width: 12),
-            Expanded(child: _tile(context, 'rose', '😂', 'Fun zone', 'Farts, sounds, translator', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FunPage())))),
-          ])),
-          const SizedBox(height: 12),
-          _enter(7, _talkCard(context)),
-          const SizedBox(height: 14),
-          _enter(8, Center(child: Text('Made with 💖 for ${s.babyName}', style: TextStyle(color: Theme.of(context).colorScheme.outline, fontSize: 12)))),
+          _enter(3, _grid(context)),
         ]),
       ),
     );
@@ -375,13 +348,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     ]);
   }
 
-  Widget _tile(BuildContext context, String pal, String emoji, String title, String sub, VoidCallback onTap, {String? action}) {
+  Widget _tile(BuildContext context, String pal, String emoji, String title, String sub, VoidCallback onTap, {String? action, double height = 112}) {
     final p = _pal(context, pal);
     return _Pressable(
       onTap: onTap,
       child: Container(
-        height: 132,
-        padding: const EdgeInsets.all(16),
+        height: height,
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(26),
           gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [p.a, p.b]),
@@ -389,7 +362,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Text(emoji, style: const TextStyle(fontSize: 30)),
+            Text(emoji, style: const TextStyle(fontSize: 28)),
             const Spacer(),
             if (action != null)
               Container(
@@ -401,7 +374,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               Icon(Icons.arrow_forward_rounded, color: p.ink.withValues(alpha: 0.6)),
           ]),
           const Spacer(),
-          Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: p.ink)),
+          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: p.ink)),
           Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: p.ink.withValues(alpha: 0.8))),
         ]),
       ),
@@ -411,6 +384,50 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _watchTile(BuildContext context) {
     final w = SleepWatch.i;
     return _tile(context, 'mint', w.on ? '🎧' : '🔇', 'Sleep watch', w.on ? 'Listening now 🟢' : 'Off · tap to open', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WatchPage())));
+  }
+
+  // ───────────── tiles ─────────────
+  Widget _grid(BuildContext context) {
+    final s = Store.i, w = SleepWatch.i;
+    String t(DateTime? d) => d == null ? '—' : hm(d);
+    final tiles = <Widget>[
+      _tile(context, 'coral', '😢', 'పాప ఏడుస్తోంది', 'Why? Tap to find out', () => _crySheet(context)),
+      _tile(context, 'mint', '🧷', 'Nappy', '${s.countToday('nappies')} today · ${t(s.last('nappies'))}', () async {
+        HapticFeedback.lightImpact();
+        await s.addTime('nappies');
+        _snack('Nappy change logged 🧷');
+      }, action: '＋'),
+      _tile(context, 'lilac', '🌤️', 'Woke up', 'last ${t(s.last('sleeps'))}', () async {
+        HapticFeedback.lightImpact();
+        await s.addTime('sleeps');
+        _snack('Wake-up logged 🌤️');
+      }, action: '＋'),
+      _tile(context, 'mint', w.on ? '🎧' : '🔇', 'Sleep watch', w.on ? 'Listening 🟢' : 'Off', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WatchPage()))),
+      _tile(context, 'sky', '📊', 'Cry tracker', '${s.countCries()} cries today', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CryHistoryPage()))),
+      _tile(context, 'peach', '🎙️', 'Baby voices', '${s.list('voices').length} saved', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VoicesPage()))),
+      _tile(context, 'rose', '😂', 'Fun zone', 'Farts & translator', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FunPage()))),
+      _tile(context, 'lilac', '🗣️', 'Talking baby', Talk.enabled ? 'On · every hour' : 'Off', () => _talkSheet(context)),
+    ];
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      childAspectRatio: 1.45,
+      children: tiles,
+    );
+  }
+
+  void _talkSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => ListenableBuilder(
+        listenable: Store.i,
+        builder: (c, _) => SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16), child: _talkCard(c))),
+      ),
+    );
   }
 
   // ───────────── talking baby ─────────────
@@ -449,35 +466,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           TextButton(style: TextButton.styleFrom(foregroundColor: p.ink), onPressed: () => Talk.test(), child: const Text('▶ Try')),
         ]),
       ]),
-    );
-  }
-
-  // ───────────── moments ─────────────
-  Widget _cameraBig(BuildContext context) {
-    final p = _pal(context, 'lilac');
-    return _Pressable(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CameraPage())),
-      child: _gradBox(
-        p,
-        pad: const EdgeInsets.fromLTRB(20, 18, 16, 18),
-        Row(children: [
-          Container(
-            width: 62,
-            height: 62,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.6)),
-            child: const Text('📸', style: TextStyle(fontSize: 32)),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Camera', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: p.ink)),
-              Text("90's film · VHS · Polaroid · devil horns 😈 · clown 🤡", style: TextStyle(color: p.ink.withValues(alpha: 0.85))),
-            ]),
-          ),
-          Icon(Icons.chevron_right_rounded, size: 30, color: p.ink),
-        ]),
-      ),
     );
   }
 

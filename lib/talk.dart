@@ -30,17 +30,17 @@ class Talk {
   /// Quick replies shown in the app when it asks: [button, what the baby says back]
   static const replies = <String, List<List<String>>>{
     'ask': [
-      ['💼 పని చేస్తున్నా', 'సరే! త్వరగా వచ్చేయ్!'],
-      ['🍳 వంట చేస్తున్నా', 'యమ్మీ! నాకు కూడా!'],
-      ['😴 రెస్ట్ తీసుకుంటున్నా', 'సరే, బజ్జో!'],
-      ['🥰 నీ గురించే ఆలోచిస్తున్నా', 'నేను కూడా! ఐ లవ్ యూ!'],
+      ['💼 పని చేస్తున్నా', 'సరే! త్వరగా వచ్చేయ్!', 'r_work'],
+      ['🍳 వంట చేస్తున్నా', 'యమ్మీ! నాకు కూడా!', 'r_cook'],
+      ['😴 రెస్ట్ తీసుకుంటున్నా', 'సరే, బజ్జో!', 'r_rest'],
+      ['🥰 నీ గురించే ఆలోచిస్తున్నా', 'నేను కూడా! ఐ లవ్ యూ!', 'r_love'],
     ],
     'food': [
-      ['🍗 సరే, తెస్తా!', 'యే! థాంక్యూ అమ్మా!'],
-      ['🍼 ముందు పాలు తాగు', 'సరే అమ్మా… పాలే నాకు ఇష్టం!'],
+      ['🍗 సరే, తెస్తా!', 'యే! థాంక్యూ అమ్మా!', 'r_food_yes'],
+      ['🍼 ముందు పాలు తాగు', 'సరే అమ్మా… పాలే నాకు ఇష్టం!', 'r_food_milk'],
     ],
     'ram': [
-      ['🙏 జై శ్రీ రామ్!', 'జై శ్రీ రామ్! థాంక్యూ అమ్మా. గుడ్ నైట్!'],
+      ['🙏 జై శ్రీ రామ్!', 'జై శ్రీ రామ్! థాంక్యూ అమ్మా. గుడ్ నైట్!', 'r_ram'],
     ],
   };
 
@@ -60,6 +60,7 @@ class Talk {
     final lang = Voice.i.lang ?? '';
     final redo = force || ver != version || Store.i.settings['talkLang'] != lang;
     for (final e in lines.entries) {
+      if (Voice.i.hasClip(e.key)) continue;
       final p = await _path(e.key);
       final f = File(p);
       if (!redo && f.existsSync() && f.lengthSync() > 2000) continue;
@@ -112,7 +113,11 @@ class Talk {
           if (!s.key.isAfter(now.add(const Duration(seconds: 30)))) continue;
           final p = await _path(s.value);
           final file = File(p);
-          final audio = file.existsSync() && file.lengthSync() > 2000 ? p : 'assets/audio/music_box.wav';
+          final audio = Voice.i.hasClip(s.value)
+              ? 'assets/voice/${s.value}.m4a'
+              : file.existsSync() && file.lengthSync() > 2000
+                  ? p
+                  : 'assets/audio/music_box.wav';
           final l = lines[s.value]!;
           await Alarm.set(
             alarmSettings: AlarmSettings(
@@ -139,7 +144,7 @@ class Talk {
   static Future<void> test([String? key]) async {
     final k = key ?? (lines.keys.toList()..shuffle()).first;
     final l = lines[k]!;
-    await Voice.i.say(l[0], dev: l[1], lat: l[2], pitch: 1.85);
+    if (!await Voice.i.clip(k, volume: (Store.i.settings['talkVol'] as num?)?.toDouble() ?? 0.8)) await Voice.i.say(l[0], dev: l[1], lat: l[2], pitch: 1.85);
   }
 
   static String group(String key) => key == 'ram' ? 'ram' : (key == 'biryani' || key == 'pizza') ? 'food' : 'ask';
@@ -172,7 +177,7 @@ Future<void> showTalkSheet(BuildContext context, int id) async {
                         try {
                           await Alarm.stop(id);
                         } catch (_) {}
-                        await Voice.i.say(r[1], pitch: 1.85);
+                        if (!await Voice.i.clip(r[2])) await Voice.i.say(r[1], pitch: 1.85);
                       },
                       child: Text(r[0]),
                     ))

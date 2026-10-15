@@ -158,7 +158,7 @@ class _ShellState extends State<Shell> {
             onPressed: () async {
               Navigator.pop(c);
               await FeedAlarm.snooze(10);
-              await Voice.i.say('సరే… కొంచెం సేపు ఆగుతా', dev: 'सरे… कोंचेम सेपु आगुता', lat: 'Sare… konchem sepu aagutha', pitch: 1.8);
+              if (!await Voice.i.clip('snooze')) await Voice.i.say('సరే… కొంచెం సేపు ఆగుతా', dev: 'सरे… कोंचेम सेपु आगुता', lat: 'Sare… konchem sepu aagutha', pitch: 1.8);
             },
             child: const Text('10 నిమిషాలు ఆగు · Snooze'),
           ),
