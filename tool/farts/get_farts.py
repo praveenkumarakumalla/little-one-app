@@ -1,4 +1,4 @@
-"""Collects 20 real (human) fart recordings from Freesound, CC0 licence only, and makes 5–10 s clips.
+"""Collects real (human) fart recordings from Freesound (CC0 or CC-BY, credited in the app) and makes 20 clips of 5–10 s.
 
 Runs in GitHub Actions:  python tool/farts/get_farts.py
 Writes assets/farts/fart_01.m4a … fart_20.m4a and assets/farts/credits.json
@@ -16,6 +16,7 @@ PACKS = [
     ("designerschoice", 43542),
     ("timtube", 3907),
     ("Zott820", 11588),
+    ("delphidebrain", 14574),
 ]
 SOUNDS = [
     ("Opposit", 58836), ("chimerical", 104425), ("Huminaatio", 221907), ("sandyrb", 110045), ("sandyrb", 110048),
@@ -23,6 +24,10 @@ SOUNDS = [
     ("DiArchangeli", 195146), ("taliasauce", 158739), ("Jagadamba", 253862), ("Jagadamba", 253803),
     ("frenkfurth", 650693), ("Hajisounds", 640073), ("edfuentesg", 469695), ("shaundoogan", 465486),
     ("TeddyFerguson", 402569), ("Sadiquecat", 787755), ("Crimsonblaze", 833105),
+    ("TryToThink", 608980), ("SamuelGremaud", 518699), ("frenkfurth", 663615), ("benonez2", 173986),
+    ("smokevhstapes", 262423), ("C-V", 506994), ("Darsycho", 492763), ("james.luib", 818387),
+    ("Zott820", 183545), ("Zott820", 183546), ("Zott820", 183547), ("Zott820", 183548), ("Zott820", 183549),
+    ("Zott820", 183550), ("Zott820", 183551),
 ]
 BAD = re.compile(r"synth|computer|cartoon|8.?bit|arcade|whoopee|balloon|mouth|armpit|hand|vocal|voice|fake|laugh|burp|belch|pee|poop|toilet|splat|game", re.I)
 
@@ -51,8 +56,8 @@ def get(url, binary=False, tries=3):
 
 def pack_sounds(user, pid):
     ids = set()
-    for page in range(1, 6):
-        html = get(f"https://freesound.org/people/{user}/packs/{pid}/sounds/?page={page}")
+    for page in range(1, 4):
+        html = get(f"https://freesound.org/people/{user}/packs/{pid}/" + (f"?page={page}" if page > 1 else ""))
         if not html:
             break
         found = set((u, int(i)) for u, i in re.findall(r'/people/([^/"]+)/sounds/(\d+)/', html))
@@ -68,9 +73,38 @@ def info(user, sid):
         return None
     title = re.search(r"<title>(.*?)</title>", html, re.S)
     title = re.sub(r"\s+", " ", title.group(1)).replace("Freesound - ", "").strip() if title else str(sid)
-    cc0 = "publicdomain/zero" in html or "Creative Commons 0" in html
+    lic = None
+    if "publicdomain/zero" in html:
+        lic = "CC0"
+    else:
+        m = re.search(r'creativecommons\.org/licenses/(by(?:-[a-z]+)*)/(\d\.\d)', html)
+        if m and "nc" not in m.group(1) and "nd" not in m.group(1):
+            lic = f"CC {m.group(1).upper()} {m.group(2)}"
     m = re.search(r'(https://cdn\.freesound\.org/previews/\d+/\d+_\d+-hq\.mp3)', html)
-    return dict(id=sid, user=user, title=title, cc0=cc0, preview=m.group(1) if m else None)
+    return dict(id=sid, user=user, title=title, lic=lic, preview=m.group(1) if m else None)
+
+
+def events(path, tmp, sid):
+    """Split one recording into separate farts at the silent gaps."""
+    r = subprocess.run(["ffmpeg", "-i", path, "-af", "silencedetect=noise=-40dB:d=0.35", "-f", "null", "-"], capture_output=True, text=True)
+    total = duration(path)
+    marks = re.findall(r"silence_(start|end): ([\d.]+)", r.stderr)
+    spans, cur = [], 0.0
+    for kind, t in marks:
+        t = float(t)
+        if kind == "start":
+            if t - cur >= 0.3:
+                spans.append((cur, t))
+        else:
+            cur = t
+    if total - cur >= 0.3:
+        spans.append((cur, total))
+    out = []
+    for i, (a, b) in enumerate(spans[:10]):
+        seg = os.path.join(tmp, f"{sid}_{i}.wav")
+        ffmpeg("-ss", f"{max(0, a - 0.05):.3f}", "-to", f"{b + 0.1:.3f}", "-i", path, "-ar", "44100", "-ac", "1", seg)
+        out.append((seg, duration(seg)))
+    return out
 
 
 def ffmpeg(*args):
@@ -98,34 +132,31 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         for u, sid in sorted(cands, key=lambda x: x[1]):
             it = info(u, sid)
-            if not it or not it["cc0"] or not it["preview"] or BAD.search(it["title"]):
+            if not it or not it["lic"] or not it["preview"] or BAD.search(it["title"]):
                 continue
             raw = os.path.join(tmp, f"{sid}.mp3")
             data = get(it["preview"], binary=True)
             if not data:
                 continue
             open(raw, "wb").write(data)
-            # trim silence from both ends
-            clean = os.path.join(tmp, f"{sid}.wav")
-            ffmpeg("-i", raw, "-af", "silenceremove=start_periods=1:start_threshold=-45dB:stop_periods=-1:stop_threshold=-45dB:stop_duration=0.6,aresample=44100", "-ac", "1", clean)
-            d = duration(clean)
-            if d < 0.6:
-                continue
-            it["dur"] = d
-            it["wav"] = clean
-            good.append(it)
-            print(f"ok {sid} {d:.1f}s {it['title']}")
-            if len(good) >= 80:
+            full = os.path.join(tmp, f"{sid}.wav")
+            ffmpeg("-i", raw, "-ar", "44100", "-ac", "1", full)
+            evs = [e for e in events(full, tmp, sid) if e[1] >= 0.4]
+            for seg, d in evs:
+                good.append(dict(it, wav=seg, dur=d))
+            print(f"ok {sid} [{it['lic']}] {len(evs)} farts · {it['title']}")
+            if len(good) >= 160:
                 break
 
-        if len(good) < 8:
-            print("::error title=farts::only", len(good), "usable CC0 recordings found")
+        if len(good) < 20:
+            print("::error title=farts::only", len(good), "usable farts found")
             sys.exit(1)
 
         long = [g for g in good if g["dur"] >= 5]
         short = [g for g in good if g["dur"] < 5]
         random.shuffle(long)
         random.shuffle(short)
+        short.sort(key=lambda g: g["id"])  # medleys mostly from the same recording
         clips = []
         for g in long:
             clips.append([g])
@@ -136,7 +167,7 @@ def main():
                 g = short.pop()
                 group.append(g)
                 total += g["dur"] + 0.35
-            if total >= 4.0:
+            if total >= 5.0:
                 clips.append(group)
         random.shuffle(clips)
         clips = clips[:20]
@@ -157,7 +188,7 @@ def main():
             ffmpeg("-i", joined, "-t", "10", "-af", "afade=t=out:st=9.4:d=0.6,loudnorm=I=-15:TP=-1.0", "-ac", "1", "-c:a", "aac", "-b:a", "96k", out)
             e, name = NAMES[n - 1]
             credits.append({"file": f"fart_{n:02d}", "emoji": e, "name": name, "secs": round(min(10.0, duration(out)), 1),
-                            "sources": [{"title": g["title"], "by": g["user"], "url": f"https://freesound.org/people/{g['user']}/sounds/{g['id']}/", "license": "CC0"} for g in group]})
+                            "sources": list({g["id"]: {"title": g["title"], "by": g["user"], "url": f"https://freesound.org/people/{g['user']}/sounds/{g['id']}/", "license": g["lic"]} for g in group}.values())})
             print(f"::notice title=farts::fart_{n:02d} {name} {credits[-1]['secs']}s from {len(group)} recording(s)")
         json.dump(credits, open(os.path.join(OUT, "credits.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
