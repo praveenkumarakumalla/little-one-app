@@ -7,6 +7,7 @@ import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 
 import 'face_fx.dart';
+import 'lenses.dart';
 import 'store.dart';
 
 // ───────────────────────── colour matrices ─────────────────────────
@@ -111,14 +112,15 @@ Sticker stickerById(String? id) => stickers.firstWhere((s) => s.id == id, orElse
 class FaceBox {
   final Rect box;
   final Offset? lEye, rEye, nose, mouthL, mouthR, mouthB;
-  const FaceBox(this.box, {this.lEye, this.rEye, this.nose, this.mouthL, this.mouthR, this.mouthB});
+  final double? open;
+  const FaceBox(this.box, {this.lEye, this.rEye, this.nose, this.mouthL, this.mouthR, this.mouthB, this.open});
   FaceBox map(Offset Function(Offset) f) {
     final a = f(box.topLeft), b = f(box.bottomRight);
     Offset? m(Offset? o) => o == null ? null : f(o);
-    return FaceBox(Rect.fromPoints(a, b), lEye: m(lEye), rEye: m(rEye), nose: m(nose), mouthL: m(mouthL), mouthR: m(mouthR), mouthB: m(mouthB));
+    return FaceBox(Rect.fromPoints(a, b), lEye: m(lEye), rEye: m(rEye), nose: m(nose), mouthL: m(mouthL), mouthR: m(mouthR), mouthB: m(mouthB), open: open);
   }
 
-  FaceState? state(Size size) => FaceState.fromPoints(box: box, lEye: lEye, rEye: rEye, mouthL: mouthL, mouthR: mouthR, mouthB: mouthB, nose: nose, size: size);
+  FaceState? state(Size size) => FaceState.fromPoints(box: box, lEye: lEye, rEye: rEye, mouthL: mouthL, mouthR: mouthR, mouthB: mouthB, nose: nose, open: open, size: size);
 }
 
 void _emoji(Canvas c, String e, Offset center, double size) {
@@ -272,7 +274,7 @@ class LiveOverlayPainter extends CustomPainter {
 // ───────────────────────── final photo ─────────────────────────
 /// Applies the filter, face changer, effects and stickers to a captured photo and saves a JPEG.
 /// [faces] are in the photo's own pixel coordinates (un-mirrored).
-Future<String> renderPhoto(String srcPath, PhotoFilter f, Sticker s, List<FaceBox> faces, {bool mirror = false, String caption = '', int fxMode = 0}) async {
+Future<String> renderPhoto(String srcPath, PhotoFilter f, Sticker s, List<FaceBox> faces, {bool mirror = false, String caption = '', Lens? lens, bool warpOk = true, double t = 0.6}) async {
   final bytes = await File(srcPath).readAsBytes();
   final codec = await ui.instantiateImageCodec(bytes);
   final src = (await codec.getNextFrame()).image;
@@ -297,11 +299,17 @@ Future<String> renderPhoto(String srcPath, PhotoFilter f, Sticker s, List<FaceBo
 
   // 2) face changer warp on the biggest face
   FaceState? fs;
-  if (fxMode != 0 && faces.isNotEmpty) {
+  final ln = lens ?? lenses.first;
+  if (!ln.none && faces.isNotEmpty) {
     final big = faces.reduce((a, b) => a.box.width * a.box.height >= b.box.width * b.box.height ? a : b);
     fs = big.state(Size(sw, sh));
     if (fs != null && mirror) fs = fs.mirrored();
-    if (fs != null) base = await FaceShader.warp(base, fxMode, fs);
+    if (fs != null && ln.warp != 0 && warpOk) {
+      try {
+        base = await FaceShader.warp(base, ln.warp, fs);
+      } catch (_) {}
+    }
+    if (fs != null) base = await magnifyImage(base, lensMags(ln, fs, Size(w, h)));
   }
 
   // 3) frame, effects, stickers, overlays
@@ -318,7 +326,7 @@ Future<String> renderPhoto(String srcPath, PhotoFilter f, Sticker s, List<FaceBo
       drawSticker(c, fb.map((o) => Offset(mirror ? w - o.dx * k : o.dx * k, o.dy * k)), s);
     }
   }
-  drawFaceOverlay(c, Size(w, h), fxMode, fs, 0.6);
+  drawLens(c, Size(w, h), ln, fs, t, since: 9);
   c.restore();
   if (f.polaroid) {
     final tp = TextPainter(

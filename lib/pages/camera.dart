@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -11,6 +12,7 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import '../data.dart';
 import '../face_fx.dart';
 import '../filters.dart';
+import '../lenses.dart';
 import '../store.dart';
 import '../watch.dart';
 import 'memories.dart';
@@ -38,14 +40,16 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
   DateTime? recStart;
   Timer? recTick;
   bool _watchWasOn = false;
-  FaceFx fx = faceFx.first;
+  Lens lens = lenses[1];
   FaceState? fstate;
+  DateTime? foundAt, lensOn;
+  String? detErr;
   int _miss = 0;
   ui.FragmentShader? shader;
   bool shaderOk = true;
   late final AnimationController anim = AnimationController(vsync: this, duration: const Duration(seconds: 60))..repeat();
 
-  final _det = FaceDetector(options: FaceDetectorOptions(enableLandmarks: true, performanceMode: FaceDetectorMode.fast, minFaceSize: 0.12));
+  final _det = FaceDetector(options: FaceDetectorOptions(enableLandmarks: true, enableContours: true, performanceMode: FaceDetectorMode.fast, minFaceSize: 0.1));
   bool _detBusy = false;
   int _frame = 0;
 
@@ -55,8 +59,19 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
     WidgetsBinding.instance.addObserver(this);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     FaceShader.program().then((p) {
-      if (p != null && mounted) setState(() => shader = p.fragmentShader());
+      if (p == null || !mounted) {
+        shaderOk = false;
+        return;
+      }
+      final sh = p.fragmentShader();
+      try {
+        ui.ImageFilter.shader(sh); // throws on phones without the new graphics engine
+      } catch (_) {
+        shaderOk = false;
+      }
+      if (mounted) setState(() => shader = sh);
     });
+    lensOn = DateTime.now();
     _boot();
   }
 
@@ -98,7 +113,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
 
   Future<void> _streamOn() async {
     final ctl = c;
-    if (ctl == null || ctl.value.isStreamingImages || recording || (activeSticker.kind == 'none' && fx.mode == 0)) return;
+    if (ctl == null || ctl.value.isStreamingImages || recording || (activeSticker.kind == 'none' && lens.none)) return;
     try {
       await ctl.startImageStream(_onFrame);
     } catch (_) {}
@@ -113,7 +128,21 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
   }
 
   static Uint8List _nv21(CameraImage im) {
-    if (im.planes.length == 1) return im.planes.first.bytes;
+    if (im.planes.length == 1) {
+      final pl = im.planes.first;
+      if (pl.bytesPerRow == im.width) return pl.bytes;
+      // strip row padding so the detector sees a tight NV21 picture
+      final w = im.width, h = im.height;
+      final out = Uint8List(w * h * 3 ~/ 2);
+      var i = 0;
+      for (var row = 0; row < h + h ~/ 2; row++) {
+        final st = row * pl.bytesPerRow;
+        if (st + w > pl.bytes.length) break;
+        out.setRange(i, i + w, pl.bytes, st);
+        i += w;
+      }
+      return out;
+    }
     final w = im.width, h = im.height;
     final y = im.planes[0], u = im.planes[1], v = im.planes[2];
     final out = Uint8List(w * h + 2 * (w ~/ 2) * (h ~/ 2));
@@ -145,29 +174,39 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
       final upH = (so == 90 || so == 270) ? im.width.toDouble() : im.height.toDouble();
       final ps = ctl.value.previewSize!;
       final pw = ps.height, ph = ps.width; // portrait
-      final kx = pw / upW, ky = ph / upH;
-      Offset map(Offset o) => Offset(front ? pw - o.dx * kx : o.dx * kx, o.dy * ky);
+      // the preview shows the centre of the analysed picture (same zoom both ways)
+      final k = math.max(pw / upW, ph / upH);
+      final ox = (pw - upW * k) / 2, oy = (ph - upH * k) / 2;
+      Offset map(Offset o) {
+        final x = o.dx * k + ox;
+        return Offset(front ? pw - x : x, o.dy * k + oy);
+      }
       Offset? lm(Face fc, FaceLandmarkType t) {
         final p = fc.landmarks[t]?.position;
         return p == null ? null : Offset(p.x.toDouble(), p.y.toDouble());
       }
 
       final out = res
-          .map((fc) => FaceBox(fc.boundingBox, lEye: lm(fc, FaceLandmarkType.leftEye), rEye: lm(fc, FaceLandmarkType.rightEye), nose: lm(fc, FaceLandmarkType.noseBase), mouthL: lm(fc, FaceLandmarkType.leftMouth), mouthR: lm(fc, FaceLandmarkType.rightMouth), mouthB: lm(fc, FaceLandmarkType.bottomMouth)).map(map))
+          .map((fc) => FaceBox(fc.boundingBox, lEye: lm(fc, FaceLandmarkType.leftEye), rEye: lm(fc, FaceLandmarkType.rightEye), nose: lm(fc, FaceLandmarkType.noseBase), mouthL: lm(fc, FaceLandmarkType.leftMouth), mouthR: lm(fc, FaceLandmarkType.rightMouth), mouthB: lm(fc, FaceLandmarkType.bottomMouth), open: mouthOpen(fc)).map(map))
           .toList();
       final FaceState? st = out.isEmpty ? null : out.reduce((a, b) => a.box.width * a.box.height >= b.box.width * b.box.height ? a : b).state(Size(pw, ph));
+      detErr = null;
       if (mounted) {
         setState(() {
           faces = out;
           if (st != null) {
             _miss = 0;
+            if (fstate == null) foundAt = DateTime.now();
             fstate = st.lerp(fstate, 0.55);
           } else if (++_miss > 4) {
             fstate = null;
           }
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      detErr = '$e';
+      if (mounted) setState(() {});
+    }
     _detBusy = false;
   }
 
@@ -227,8 +266,8 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
       final shot = await ctl.takePicture();
       final st = activeSticker;
       var still = <FaceBox>[];
-      if (st.kind != 'none' || fx.mode != 0) {
-        final det = FaceDetector(options: FaceDetectorOptions(enableLandmarks: true, performanceMode: FaceDetectorMode.accurate));
+      if (st.kind != 'none' || !lens.none) {
+        final det = FaceDetector(options: FaceDetectorOptions(enableLandmarks: true, enableContours: true, performanceMode: FaceDetectorMode.accurate));
         try {
           final fs = await det.processImage(InputImage.fromFilePath(shot.path));
           Offset? lm(Face fc, FaceLandmarkType t) {
@@ -236,17 +275,17 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
             return p == null ? null : Offset(p.x.toDouble(), p.y.toDouble());
           }
 
-          still = fs.map((fc) => FaceBox(fc.boundingBox, lEye: lm(fc, FaceLandmarkType.leftEye), rEye: lm(fc, FaceLandmarkType.rightEye), nose: lm(fc, FaceLandmarkType.noseBase), mouthL: lm(fc, FaceLandmarkType.leftMouth), mouthR: lm(fc, FaceLandmarkType.rightMouth), mouthB: lm(fc, FaceLandmarkType.bottomMouth))).toList();
+          still = fs.map((fc) => FaceBox(fc.boundingBox, lEye: lm(fc, FaceLandmarkType.leftEye), rEye: lm(fc, FaceLandmarkType.rightEye), nose: lm(fc, FaceLandmarkType.noseBase), mouthL: lm(fc, FaceLandmarkType.leftMouth), mouthR: lm(fc, FaceLandmarkType.rightMouth), mouthB: lm(fc, FaceLandmarkType.bottomMouth), open: mouthOpen(fc) ?? fstate?.open)).toList();
         } catch (_) {}
         await det.close();
       }
       final b = Store.i.birth;
       final cap = '${Store.i.babyName} · ${b == null ? dmy(DateTime.now()) : 'Day ${dayNumber(b)}'}';
-      final path = await renderPhoto(shot.path, f, st, still, mirror: front, caption: cap, fxMode: fx.mode);
+      final path = await renderPhoto(shot.path, f, st, still, mirror: front, caption: cap, lens: lens, warpOk: shaderOk && shader != null, t: anim.value * 60);
       try {
         File(shot.path).deleteSync();
       } catch (_) {}
-      final m = {'id': Store.newId(), 'path': path, 'video': false, 'caption': '${f.emoji} ${f.name}${fx.mode != 0 ? ' ${fx.emoji} ${fx.name}' : ''}${st.kind != 'none' ? ' ${st.emoji}' : ''}', 'tag': '', 'date': ymd(DateTime.now()), 'cam': true};
+      final m = {'id': Store.newId(), 'path': path, 'video': false, 'caption': '${f.emoji} ${f.name}${!lens.none ? ' ${lens.emoji} ${lens.name}' : ''}${st.kind != 'none' ? ' ${st.emoji}' : ''}', 'tag': '', 'date': ymd(DateTime.now()), 'cam': true};
       await Store.i.addItem('memories', m);
       lastMemory = m;
       if (mounted) _snack('Saved to Memories 💖');
@@ -340,7 +379,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
           Positioned.fill(child: _preview(ctl)),
         if (flashWhite) Positioned.fill(child: Container(color: Colors.white)),
         if (countdown > 0) Center(child: Text('$countdown', style: const TextStyle(fontSize: 120, color: Colors.white, fontWeight: FontWeight.w900, shadows: [Shadow(blurRadius: 20)]))),
-        SafeArea(child: Column(children: [_topBar(), const Spacer(), _bottom()])),
+        SafeArea(child: Column(children: [_topBar(), if (!recording && !video && (!lens.none || activeSticker.kind != 'none')) _faceStatus(), const Spacer(), _bottom()])),
       ]),
     );
   }
@@ -359,24 +398,51 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
             builder: (context, _) {
               final t = anim.value * 60;
               Widget pv = ColorFiltered(colorFilter: ColorFilter.matrix(f.m), child: CameraPreview(ctl));
-              final warp = fx.mode != 0 && fstate != null && shader != null && shaderOk;
+              final warp = lens.warp != 0 && fstate != null && shader != null && shaderOk;
               if (warp) {
                 try {
-                  FaceShader.setUniforms(shader!, fx.mode, t, fstate);
+                  FaceShader.setUniforms(shader!, lens.warp, t, fstate);
                   pv = ImageFiltered(imageFilter: ui.ImageFilter.shader(shader!), child: pv);
                 } catch (_) {
                   shaderOk = false;
                 }
               }
+              final size = Size(pw, ph);
+              final mags = lensMags(lens, fstate, size);
+              final since = foundAt == null ? 0.0 : DateTime.now().difference(foundAt!).inMilliseconds / 1000;
               return Stack(children: [
                 Positioned.fill(child: pv),
+                for (final m in mags) magLayer(pv, m, size),
                 Positioned.fill(child: CustomPaint(painter: LiveOverlayPainter(f, activeSticker, faces))),
-                if (fx.mode != 0) Positioned.fill(child: CustomPaint(painter: FaceOverlayPainter(fx.mode, fstate, t))),
+                if (!lens.none) Positioned.fill(child: CustomPaint(painter: LensPainter(lens, fstate, t, since))),
               ]);
             },
           ),
         ),
       ),
+    );
+  }
+
+  /// Shows whether a face is being tracked, so the face changers never feel "broken".
+  Widget _faceStatus() {
+    final found = fstate != null;
+    final waited = lensOn != null && DateTime.now().difference(lensOn!).inSeconds >= 3;
+    String text;
+    if (found) {
+      text = '${lens.emoji} Face found!${lens.hint.isNotEmpty ? '  ${lens.hint}' : ''}';
+    } else if (detErr != null && waited) {
+      text = '⚠️ Face tracking problem: ${detErr!.length > 60 ? detErr!.substring(0, 60) : detErr}';
+    } else if (!front && waited) {
+      text = '🔍 Looking for a face… tap 🔄 for selfie';
+    } else {
+      text = '🔍 Looking for a face… hold the phone in front of a face';
+    }
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      margin: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: BoxDecoration(color: found ? const Color(0xCC2EAE5A) : Colors.black54, borderRadius: BorderRadius.circular(20)),
+      child: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
     );
   }
 
@@ -530,10 +596,15 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
   Widget _faceStrip() => ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 8),
-        children: faceFx
-            .map((x) => _chip(x.emoji, x.name, fx.mode == x.mode, () async {
-                  setState(() => fx = x);
-                  if (x.mode == 0 && activeSticker.kind == 'none') {
+        children: lenses
+            .where((x) => x.warp == 0 || (shaderOk && shader != null))
+            .map((x) => _chip(x.emoji, x.name, lens.id == x.id, () async {
+                  setState(() {
+                    lens = x;
+                    lensOn = DateTime.now();
+                    foundAt = DateTime.now();
+                  });
+                  if (x.none && activeSticker.kind == 'none') {
                     await _streamOff();
                     setState(() {
                       faces = const [];
@@ -542,7 +613,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
                   } else {
                     if (video) setState(() => video = false);
                     await _streamOn();
-                    if (!shaderOk && mounted) _snack('Face changer needs a newer phone graphics engine 😔');
+                    if (x.hint.isNotEmpty && mounted) _snack(x.hint);
                   }
                 }))
             .toList(),
@@ -564,4 +635,14 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
                 }))
             .toList(),
       );
+}
+
+/// How open the mouth is (0..1), from the lip outlines.
+double? mouthOpen(Face fc) {
+  final up = fc.contours[FaceContourType.upperLipBottom]?.points;
+  final lo = fc.contours[FaceContourType.lowerLipTop]?.points;
+  if (up == null || lo == null || up.isEmpty || lo.isEmpty) return null;
+  final u = up[up.length ~/ 2], l = lo[lo.length ~/ 2];
+  final gap = (l.y - u.y).abs() / fc.boundingBox.height;
+  return ((gap - 0.02) / 0.12).clamp(0.0, 1.0);
 }

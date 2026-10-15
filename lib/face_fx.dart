@@ -32,9 +32,11 @@ class FaceState {
   final Rect face; // x, y, w, h fractions
   final Offset lEye, rEye, mouth, nose;
   final double mouthW;
-  const FaceState(this.face, this.lEye, this.rEye, this.mouth, this.nose, this.mouthW);
+  final double open; // 0 closed … 1 wide open
+  final double roll; // head tilt in radians (screen space)
+  const FaceState(this.face, this.lEye, this.rEye, this.mouth, this.nose, this.mouthW, {this.open = 0, this.roll = 0});
 
-  static FaceState? fromPoints({required Rect box, Offset? lEye, Offset? rEye, Offset? mouthL, Offset? mouthR, Offset? mouthB, Offset? nose, required Size size}) {
+  static FaceState? fromPoints({required Rect box, Offset? lEye, Offset? rEye, Offset? mouthL, Offset? mouthR, Offset? mouthB, Offset? nose, double? open, required Size size}) {
     if (size.width <= 0 || size.height <= 0) return null;
     Offset n(Offset o) => Offset(o.dx / size.width, o.dy / size.height);
     final b = Rect.fromLTRB(box.left / size.width, box.top / size.height, box.right / size.width, box.bottom / size.height);
@@ -55,16 +57,22 @@ class FaceState {
     final no = nose != null ? n(nose) : Offset(b.center.dx, b.top + b.height * 0.6);
     // keep left/right in screen order
     final l = le.dx <= re.dx ? le : re, r = le.dx <= re.dx ? re : le;
-    return FaceState(b, l, r, mouth, no, mw);
+    final roll = math.atan2((r.dy - l.dy) * size.height, (r.dx - l.dx) * size.width);
+    var op = open;
+    if (op == null && mouthL != null && mouthR != null && mouthB != null) {
+      final d = (mouthB.dy - (mouthL.dy + mouthR.dy) / 2).abs() / box.height;
+      op = ((d - 0.07) / 0.09).clamp(0.0, 1.0);
+    }
+    return FaceState(b, l, r, mouth, no, mw, open: op ?? 0, roll: roll);
   }
 
   FaceState lerp(FaceState? o, double t) {
     if (o == null) return this;
     Offset lo(Offset a, Offset b) => Offset.lerp(b, a, t)!;
-    return FaceState(Rect.lerp(o.face, face, t)!, lo(lEye, o.lEye), lo(rEye, o.rEye), lo(mouth, o.mouth), lo(nose, o.nose), o.mouthW + (mouthW - o.mouthW) * t);
+    return FaceState(Rect.lerp(o.face, face, t)!, lo(lEye, o.lEye), lo(rEye, o.rEye), lo(mouth, o.mouth), lo(nose, o.nose), o.mouthW + (mouthW - o.mouthW) * t, open: o.open + (open - o.open) * t, roll: o.roll + (roll - o.roll) * t);
   }
 
-  FaceState mirrored() => FaceState(Rect.fromLTRB(1 - face.right, face.top, 1 - face.left, face.bottom), Offset(1 - rEye.dx, rEye.dy), Offset(1 - lEye.dx, lEye.dy), Offset(1 - mouth.dx, mouth.dy), Offset(1 - nose.dx, nose.dy), mouthW);
+  FaceState mirrored() => FaceState(Rect.fromLTRB(1 - face.right, face.top, 1 - face.left, face.bottom), Offset(1 - rEye.dx, rEye.dy), Offset(1 - lEye.dx, lEye.dy), Offset(1 - mouth.dx, mouth.dy), Offset(1 - nose.dx, nose.dy), mouthW, open: open, roll: -roll);
 }
 
 class FaceShader {
