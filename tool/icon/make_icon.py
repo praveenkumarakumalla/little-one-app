@@ -26,11 +26,11 @@ MOON = ("M 560 150 "
 def svg(body, bg=False):
     defs = """
     <defs>
-      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#FFD6E5"/><stop offset="0.55" stop-color="#FFE3EC"/><stop offset="1" stop-color="#FFEBD9"/>
+      <linearGradient id="bg" x1="0" y1="0" x2="0.9" y2="1">
+        <stop offset="0" stop-color="#2B1F6E"/><stop offset="0.5" stop-color="#6A3497"/><stop offset="1" stop-color="#E0608F"/>
       </linearGradient>
-      <radialGradient id="glow" cx="0.55" cy="0.5" r="0.55">
-        <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.75"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+      <radialGradient id="glow" cx="0.45" cy="0.52" r="0.5">
+        <stop offset="0" stop-color="#FFE7A0" stop-opacity="0.55"/><stop offset="0.6" stop-color="#FFC2D6" stop-opacity="0.18"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
       </radialGradient>
       <linearGradient id="moon" gradientUnits="userSpaceOnUse" x1="200" y1="160" x2="720" y2="900">
         <stop offset="0" stop-color="#FFF6D8"/><stop offset="0.45" stop-color="#FFE29A"/><stop offset="1" stop-color="#F9BE5C"/>
@@ -48,7 +48,10 @@ def svg(body, bg=False):
         <stop offset="0" stop-color="#FF8FB1"/><stop offset="1" stop-color="#E9457C"/>
       </linearGradient>
     </defs>"""
-    back = '<rect width="1024" height="1024" fill="url(#bg)"/><circle cx="560" cy="520" r="470" fill="url(#glow)"/>' if bg else ''
+    stars = ''.join(f'<circle cx="{x}" cy="{y}" r="{r}" fill="#FFFFFF" opacity="{o}"/>' for x, y, r, o in [
+        (120, 140, 5, 0.9), (220, 80, 3, 0.7), (880, 120, 4, 0.8), (930, 300, 3, 0.6), (90, 420, 3, 0.6), (140, 860, 4, 0.7),
+        (900, 860, 3, 0.6), (820, 560, 3, 0.7), (300, 960, 3, 0.5), (60, 640, 2, 0.6), (980, 700, 2, 0.6), (640, 60, 3, 0.7)])
+    back = ('<rect width="1024" height="1024" fill="url(#bg)"/>' + stars + '<circle cx="470" cy="540" r="470" fill="url(#glow)"/>') if bg else ''
     return f'<svg xmlns="http://www.w3.org/2000/svg" width="{S}" height="{S}" viewBox="0 0 1024 1024">{defs}{back}{body}</svg>'
 
 def png(svg_text):
