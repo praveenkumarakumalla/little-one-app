@@ -1188,9 +1188,7 @@ class _ChatPageState extends State<ChatPage> {
                       context: context,
                       builder: (d) => AlertDialog(
                         title: const Text('Change the family code?'),
-                        content: const Text('Everyone will stop receiving new messages and memories until you send them the new code. Old messages stay on every phone.
-
-Game room codes are separate – friends can still play games with you.'),
+                        content: const Text('Everyone will stop receiving new messages and memories until you send them the new code. Old messages stay on every phone.\n\nGame room codes are separate – friends can still play games with you.'),
                         actions: [TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Make new code'))],
                       ),
                     );
