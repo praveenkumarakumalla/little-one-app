@@ -24,7 +24,7 @@ class Moments {
     await reschedule();
   }
 
-  static bool get enabled => Store.i.settings['moments'] != false;
+  static bool get enabled => Store.i.settings['moments'] == true;
 
   static const _msgs = [
     ['📸 Smile time!', 'She looks different every day — take a photo of her now.'],

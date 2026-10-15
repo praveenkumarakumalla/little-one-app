@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'chat.dart';
 import 'feed_alarm.dart';
 import 'moments.dart';
+import 'talk.dart';
 import 'pages/camera.dart';
 import 'pages/voices.dart';
 import 'pages/health.dart';
@@ -31,6 +32,7 @@ Future<void> main() async {
   try {
     await Moments.init();
   } catch (_) {}
+  unawaited(Talk.reschedule());
   runApp(const LittleOneApp());
 }
 
@@ -74,12 +76,20 @@ class _ShellState extends State<Shell> {
   int tab = 0;
   StreamSubscription? _ringSub;
   bool _dialogOpen = false;
+  final Set<int> _talkShown = {};
 
   @override
   void initState() {
     super.initState();
     _ringSub = Alarm.ringing.listen((set) {
-      if (set.alarms.isNotEmpty) _showFeedAlarm();
+      final ids = set.alarms.map((a) => a.id).toList();
+      if (ids.contains(FeedAlarm.id)) _showFeedAlarm();
+      for (final id in ids.where(Talk.isTalk)) {
+        if (_talkShown.add(id)) {
+          final ctx = navKey.currentContext;
+          if (ctx != null) showTalkSheet(ctx, id);
+        }
+      }
     });
     Moments.route.addListener(_openRoute);
     WidgetsBinding.instance.addPostFrameCallback((_) => _openRoute());

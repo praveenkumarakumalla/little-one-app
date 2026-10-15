@@ -9,7 +9,7 @@ import '../feed_alarm.dart';
 import '../store.dart';
 import '../voice.dart';
 import '../watch.dart';
-import '../moments.dart';
+import '../talk.dart';
 import 'camera.dart';
 import 'cries.dart';
 import 'fun.dart';
@@ -115,16 +115,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             const SizedBox(width: 12),
             Expanded(child: _tile(context, 'rose', '😂', 'Fun zone', 'Farts, sounds, translator', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FunPage())))),
           ])),
-          _enter(7, SwitchListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-            value: Moments.enabled,
-            onChanged: (v) async {
-              await s.setSetting('moments', v);
-              await Moments.reschedule();
-            },
-            title: const Text('🔔 Remind me every 2 hours to capture a moment'),
-            subtitle: const Text('8 AM – 8 PM · tap the reminder to open the camera'),
-          )),
+          const SizedBox(height: 12),
+          _enter(7, _talkCard(context)),
           const SizedBox(height: 14),
           _enter(8, Center(child: Text('Made with 💖 for ${s.babyName}', style: TextStyle(color: Theme.of(context).colorScheme.outline, fontSize: 12)))),
         ]),
@@ -419,6 +411,45 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _watchTile(BuildContext context) {
     final w = SleepWatch.i;
     return _tile(context, 'mint', w.on ? '🎧' : '🔇', 'Sleep watch', w.on ? 'Listening now 🟢' : 'Off · tap to open', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WatchPage())));
+  }
+
+  // ───────────── talking baby ─────────────
+  Widget _talkCard(BuildContext context) {
+    final p = _pal(context, 'mint');
+    final s = Store.i;
+    final vol = ((s.settings['talkVol'] as num?)?.toDouble() ?? 0.8);
+    return _gradBox(
+      p,
+      pad: const EdgeInsets.fromLTRB(18, 14, 10, 12),
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('🗣️', style: TextStyle(fontSize: 30)),
+          const SizedBox(width: 10),
+          Expanded(child: Text('Talking baby', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: p.ink))),
+          Switch(
+            value: Talk.enabled,
+            onChanged: (v) async {
+              await s.setSetting('talk', v);
+              await Talk.reschedule();
+            },
+          ),
+        ]),
+        Text('Every hour 8 AM–8 PM she asks "అమ్మా / నాన్న / అమ్మమ్మ / తాతయ్య ఏం చేస్తున్నారు?" · 12 PM 🍗 biryani or 🍕 pizza (2 times) · 8:30 PM 🙏 జై శ్రీ రామ్. Works even when the app is closed.', style: TextStyle(fontSize: 12.5, color: p.ink.withValues(alpha: 0.85))),
+        Row(children: [
+          Text('🔉', style: TextStyle(color: p.ink)),
+          Expanded(
+            child: Slider(
+              value: vol,
+              min: 0.2,
+              max: 1.0,
+              onChanged: (v) => s.setSetting('talkVol', v),
+              onChangeEnd: (_) => Talk.reschedule(),
+            ),
+          ),
+          TextButton(style: TextButton.styleFrom(foregroundColor: p.ink), onPressed: () => Talk.test(), child: const Text('▶ Try')),
+        ]),
+      ]),
+    );
   }
 
   // ───────────── moments ─────────────

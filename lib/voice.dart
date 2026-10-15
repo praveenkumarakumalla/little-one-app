@@ -48,6 +48,25 @@ class Voice {
     speaking = false;
   }
 
+  /// Saves the words as a .wav file (used by alarms that ring while the app is closed).
+  Future<bool> synthToFile(String te, String path, {String? dev, String? lat, double pitch = 1.0}) async {
+    String text = te;
+    if (_lang == 'hi-IN' && dev != null) text = dev;
+    if (_lang == 'en-IN' && lat != null) text = lat;
+    try {
+      await _tts.awaitSynthCompletion(true);
+      await _tts.setPitch(pitch);
+      await _tts.setSpeechRate(0.42);
+      final r = await _tts.synthesizeToFile(text, path, true);
+      await _tts.setSpeechRate(0.45);
+      return r == 1 || r == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  String? get lang => _lang;
+
   Future<void> stopSpeaking() async {
     try {
       await _tts.stop();
