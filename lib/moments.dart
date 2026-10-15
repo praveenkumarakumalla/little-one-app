@@ -3,6 +3,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'chat_bg.dart';
 import 'store.dart';
 
 /// "Capture a moment" reminders every 2 hours in the daytime. Tapping one opens the camera.
@@ -19,6 +20,7 @@ class Moments {
       const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
       onDidReceiveNotificationResponse: (r) => route.value = r.payload,
     );
+    ChatNotify.ready = true;
     final d = await _n.getNotificationAppLaunchDetails();
     if (d?.didNotificationLaunchApp == true) route.value = d!.notificationResponse?.payload;
     await reschedule();

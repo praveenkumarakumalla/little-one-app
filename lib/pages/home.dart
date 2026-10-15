@@ -25,12 +25,12 @@ class _Pal {
 _Pal _pal(BuildContext c, String name) {
   final dark = Theme.of(c).brightness == Brightness.dark;
   const light = {
-    'rose': _Pal(Color(0xFFFFD9E6), Color(0xFFFFEBDD), Color(0xFF4A2338)),
-    'lilac': _Pal(Color(0xFFE9E0FF), Color(0xFFDDEEFF), Color(0xFF2E2A57)),
-    'mint': _Pal(Color(0xFFD5F5E8), Color(0xFFE8F8DC), Color(0xFF1F4537)),
-    'peach': _Pal(Color(0xFFFFE3D3), Color(0xFFFFF3D1), Color(0xFF4F3020)),
-    'sky': _Pal(Color(0xFFD8EEFF), Color(0xFFE5E3FF), Color(0xFF213A55)),
-    'coral': _Pal(Color(0xFFFF9EB5), Color(0xFFFFC4A3), Color(0xFF3F1022)),
+    'rose': _Pal(Color(0xFFFFC3D7), Color(0xFFFFD8C9), Color(0xFF5A1F3A)),
+    'lilac': _Pal(Color(0xFFDCCBFF), Color(0xFFC8E0FF), Color(0xFF2E2563)),
+    'mint': _Pal(Color(0xFFB4EEDA), Color(0xFFD3F4C2), Color(0xFF17483A)),
+    'peach': _Pal(Color(0xFFFFD2B6), Color(0xFFFFECAE), Color(0xFF5A3416)),
+    'sky': _Pal(Color(0xFFBCE0FF), Color(0xFFD7D0FF), Color(0xFF1E3A5C)),
+    'coral': _Pal(Color(0xFFFF9FB8), Color(0xFFFFBC9C), Color(0xFF4A0E22)),
   };
   const night = {
     'rose': _Pal(Color(0xFF4A2338), Color(0xFF3A2430), Color(0xFFFFE3EE)),
@@ -352,7 +352,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Text(emoji, style: const TextStyle(fontSize: 28)),
+            ClayBubble(emoji, size: 44),
             const Spacer(),
             if (action != null)
               ClayPill(action)
@@ -399,7 +399,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 1.32,
+      childAspectRatio: 1.2,
       children: tiles,
     );
   }

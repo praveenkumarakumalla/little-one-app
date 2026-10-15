@@ -15,6 +15,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
+import 'chat_bg.dart';
 import 'clay.dart';
 
 import 'data.dart';
@@ -61,6 +62,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
   final Set<String> _histDone = {};
   final Set<String> _downloading = {};
   bool pageOpen = false;
+  bool appVisible = true;
   bool online = false;
   String? notice; // e.g. "group is full"
 
@@ -84,12 +86,14 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     if (paired) {
       await _setup();
       unawaited(_connect());
+      unawaited(ChatNotify.start());
     }
     _resendTimer = Timer.periodic(const Duration(minutes: 2), (_) => _resend());
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState s) {
+    appVisible = s == AppLifecycleState.resumed;
     if (s == AppLifecycleState.resumed && paired && _sub == null) {
       _backoff = 2;
       unawaited(_connect());
@@ -138,6 +142,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     _backoff = 2;
     await _connect();
     await _publish({'t': 'join', 'name': name});
+    unawaited(ChatNotify.start());
     await _addSys('👋 You joined the family chat as $name');
   }
 
@@ -148,6 +153,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> leave() async {
     await _publish({'t': 'leave'});
+    unawaited(ChatNotify.stop());
     _disconnect();
     final c = cfg
       ..remove('code')
@@ -336,10 +342,12 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
           l.add(entry);
           l.sort((a, b) => (a['at'] as num).compareTo((b['at'] as num)));
           await _store(l);
-          if (pageOpen) {
+          if (pageOpen && appVisible) {
             await markRead();
-          } else {
+          } else if (appVisible) {
             HapticFeedback.vibrate();
+          } else {
+            unawaited(ChatNotify.show(entry['id'].toString(), (entry['name'] ?? 'Family').toString(), ChatNotify.summary(entry)));
           }
         } else if (att != null && l[idx]['path'] == null) {
           l[idx] = {...l[idx], 'url': att['url'], 'st': null};

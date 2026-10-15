@@ -11,75 +11,111 @@ class Clay extends StatelessWidget {
   final Widget child;
   final bool pressed;
   final double? height, width;
-  const Clay({super.key, required this.color, this.color2, this.radius = 26, this.depth = 6, this.padding = const EdgeInsets.all(16), required this.child, this.pressed = false, this.height, this.width});
+  const Clay({super.key, required this.color, this.color2, this.radius = 28, this.depth = 8, this.padding = const EdgeInsets.all(16), required this.child, this.pressed = false, this.height, this.width});
 
   static Color shade(Color c, double d) {
     final h = HSLColor.fromColor(c);
     return h.withLightness((h.lightness + d).clamp(0.0, 1.0)).toColor();
   }
 
+  static Color sat(Color c, double d) {
+    final h = HSLColor.fromColor(c);
+    return h.withSaturation((h.saturation + d).clamp(0.0, 1.0)).toColor();
+  }
+
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final c2 = color2 ?? color;
-    final top = shade(color, dark ? 0.05 : 0.06);
-    final side = shade(Color.lerp(color, c2, 0.5)!, dark ? -0.09 : -0.13);
-    final shadow = shade(color, dark ? -0.3 : -0.32);
+    final hi = shade(color, dark ? 0.06 : 0.09);
+    final side = sat(shade(Color.lerp(color, c2, 0.5)!, dark ? -0.10 : -0.15), 0.08);
+    final shadow = sat(shade(color, dark ? -0.32 : -0.28), 0.1);
     final r = BorderRadius.circular(radius);
     final press = pressed ? depth * 0.8 : 0.0;
     return SizedBox(
       width: width,
       child: Stack(children: [
-        // the thick base under the key + its soft shadow
+        // thick candy base + soft coloured shadow
         Positioned.fill(
           top: depth,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 110),
+            duration: const Duration(milliseconds: 120),
             decoration: BoxDecoration(
               color: side,
               borderRadius: r,
               boxShadow: [
-                BoxShadow(color: shadow.withValues(alpha: dark ? 0.55 : 0.42), blurRadius: pressed ? 6 : 18, offset: Offset(0, pressed ? 2 : 9)),
-                if (!dark) BoxShadow(color: Colors.white.withValues(alpha: 0.7), blurRadius: 10, offset: const Offset(-3, -2)),
+                BoxShadow(color: shadow.withValues(alpha: dark ? 0.6 : 0.38), blurRadius: pressed ? 8 : 24, spreadRadius: pressed ? -2 : 0, offset: Offset(0, pressed ? 3 : 12)),
+                if (!dark) BoxShadow(color: Colors.white.withValues(alpha: 0.8), blurRadius: 12, offset: const Offset(-4, -3)),
               ],
             ),
           ),
         ),
-        // the glossy top face
+        // the puffy glossy face
         AnimatedContainer(
-          duration: const Duration(milliseconds: 110),
-          curve: Curves.easeOut,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOutBack,
           margin: EdgeInsets.only(top: press, bottom: depth - press),
           height: height,
           decoration: BoxDecoration(
             borderRadius: r,
-            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [top, color, c2]),
-            border: Border.all(color: Colors.white.withValues(alpha: dark ? 0.08 : 0.65), width: 1.4),
+            gradient: RadialGradient(center: const Alignment(-0.7, -0.8), radius: 1.5, colors: [hi, color, c2], stops: const [0, 0.45, 1]),
+            border: Border.all(color: Colors.white.withValues(alpha: dark ? 0.1 : 0.85), width: 2),
           ),
           child: ClipRRect(
             borderRadius: r,
             child: Stack(children: [
-              // shine on the upper half
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 0,
-                height: (height ?? 120) * 0.5,
+              // soft inner shade at the bottom (makes it look rounded/puffy)
+              Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.white.withValues(alpha: dark ? 0.07 : 0.38), Colors.white.withValues(alpha: 0)],
+                    gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black.withValues(alpha: dark ? 0.12 : 0.05)], stops: const [0.55, 1]),
+                  ),
+                ),
+              ),
+              // candy shine blob (top-left)
+              Positioned.fill(
+                child: Align(
+                  alignment: const Alignment(-0.55, -0.92),
+                  child: FractionallySizedBox(
+                    widthFactor: 0.55,
+                    heightFactor: 0.3,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.white.withValues(alpha: dark ? 0.12 : 0.65), Colors.white.withValues(alpha: 0)]),
+                      ),
                     ),
                   ),
                 ),
               ),
+              // tiny sparkle dot
+              Positioned(left: radius * 0.55, top: radius * 0.35, child: Container(width: 7, height: 7, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: dark ? 0.2 : 0.9)))),
               Padding(padding: padding, child: child),
             ]),
           ),
         ),
       ]),
+    );
+  }
+}
+
+/// Round white candy bubble for icons/emojis.
+class ClayBubble extends StatelessWidget {
+  final String emoji;
+  final double size;
+  const ClayBubble(this.emoji, {super.key, this.size = 46});
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Clay(
+      color: dark ? const Color(0xFF3A2D42) : Colors.white,
+      color2: dark ? const Color(0xFF2E2335) : const Color(0xFFF6EEF3),
+      radius: size / 2,
+      depth: 3,
+      padding: EdgeInsets.zero,
+      width: size,
+      height: size,
+      child: Center(child: Text(emoji, style: TextStyle(fontSize: size * 0.52))),
     );
   }
 }
@@ -93,7 +129,7 @@ class ClayButton extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
   final double? height, width;
-  const ClayButton({super.key, required this.color, this.color2, this.radius = 24, this.depth = 6, this.padding = const EdgeInsets.all(14), required this.child, this.onTap, this.height, this.width});
+  const ClayButton({super.key, required this.color, this.color2, this.radius = 26, this.depth = 8, this.padding = const EdgeInsets.all(14), required this.child, this.onTap, this.height, this.width});
   @override
   State<ClayButton> createState() => _ClayButtonState();
 }
@@ -155,7 +191,7 @@ class ClayCard extends StatelessWidget {
       padding: margin ?? const EdgeInsets.symmetric(vertical: 8),
       child: Material(
         type: MaterialType.transparency,
-        child: Clay(color: base, color2: c2, radius: 24, depth: 6, padding: EdgeInsets.zero, child: child ?? const SizedBox.shrink()),
+        child: Clay(color: base, color2: c2, radius: 26, depth: 7, padding: EdgeInsets.zero, child: child ?? const SizedBox.shrink()),
       ),
     );
   }

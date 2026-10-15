@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:alarm/alarm.dart';
+import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -24,6 +25,9 @@ final navKey = GlobalKey<NavigatorState>();
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Store.i.load();
+  try {
+    await AndroidAlarmManager.initialize();
+  } catch (_) {}
   await Alarm.init();
   await Voice.i.init();
   try {
@@ -136,6 +140,11 @@ class _ShellState extends State<Shell> {
     Moments.route.value = null;
     final nav = navKey.currentState;
     if (nav == null) return;
+    if (r == 'chat') {
+      nav.popUntil((x) => x.isFirst);
+      setState(() => tab = 2);
+      return;
+    }
     nav.push(MaterialPageRoute(builder: (_) => r == 'voices' ? const VoicesPage() : const CameraPage()));
   }
 
