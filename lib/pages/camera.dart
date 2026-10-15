@@ -113,7 +113,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
 
   Future<void> _streamOn() async {
     final ctl = c;
-    if (ctl == null || ctl.value.isStreamingImages || recording || (activeSticker.kind == 'none' && lens.none)) return;
+    if (ctl == null || _snap || ctl.value.isStreamingImages || recording || (activeSticker.kind == 'none' && lens.none)) return;
     try {
       await ctl.startImageStream(_onFrame);
     } catch (_) {}
@@ -130,10 +130,10 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
   static Uint8List _nv21(CameraImage im) {
     if (im.planes.length == 1) {
       final pl = im.planes.first;
-      if (pl.bytesPerRow == im.width) return pl.bytes;
-      // strip row padding so the detector sees a tight NV21 picture
-      final w = im.width, h = im.height;
-      final out = Uint8List(w * h * 3 ~/ 2);
+      final w = im.width, h = im.height, size = w * h * 3 ~/ 2;
+      // the detector needs exactly width × height × 1.5 bytes – some phones send extra padding
+      if (pl.bytesPerRow == w) return pl.bytes.length == size ? pl.bytes : Uint8List.fromList(pl.bytes.length > size ? pl.bytes.sublist(0, size) : (Uint8List(size)..setRange(0, pl.bytes.length, pl.bytes)));
+      final out = Uint8List(size);
       var i = 0;
       for (var row = 0; row < h + h ~/ 2; row++) {
         final st = row * pl.bytesPerRow;
@@ -203,11 +203,81 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
           }
         });
       }
+      _errs = 0;
     } catch (e) {
       detErr = '$e';
+      // this phone's live frames don't suit the face detector → switch to photo-based tracking
+      if (++_errs >= 4 && !_snap) {
+        _snap = true;
+        _detBusy = false;
+        unawaited(_streamOff().then((_) => _snapLoop()));
+        return;
+      }
       if (mounted) setState(() {});
     }
     _detBusy = false;
+  }
+
+  int _errs = 0;
+  bool _snap = false, _snapping = false;
+
+  /// Fallback tracking: grab a quick still every moment and find the face in it.
+  Future<void> _snapLoop() async {
+    final det = FaceDetector(options: FaceDetectorOptions(enableLandmarks: true, enableContours: true, performanceMode: FaceDetectorMode.fast));
+    while (mounted && _snap) {
+      final ctl = c;
+      if (ctl == null || !ctl.value.isInitialized || recording || busy || (lens.none && activeSticker.kind == 'none')) {
+        await Future.delayed(const Duration(milliseconds: 400));
+        continue;
+      }
+      _snapping = true;
+      try {
+        final shot = await ctl.takePicture();
+        final bytes = await File(shot.path).readAsBytes();
+        final img = await decodeImageFromList(bytes);
+        final iw = img.width.toDouble(), ih = img.height.toDouble();
+        img.dispose();
+        final res = await det.processImage(InputImage.fromFilePath(shot.path));
+        try {
+          File(shot.path).deleteSync();
+        } catch (_) {}
+        final ps = ctl.value.previewSize!;
+        final pw = ps.height, ph = ps.width;
+        final k = math.max(pw / iw, ph / ih);
+        final ox = (pw - iw * k) / 2, oy = (ph - ih * k) / 2;
+        Offset map(Offset o) {
+          final x = o.dx * k + ox;
+          return Offset(front ? pw - x : x, o.dy * k + oy);
+        }
+        Offset? lm(Face fc, FaceLandmarkType t) {
+          final p = fc.landmarks[t]?.position;
+          return p == null ? null : Offset(p.x.toDouble(), p.y.toDouble());
+        }
+
+        final out = res.map((fc) => FaceBox(fc.boundingBox, lEye: lm(fc, FaceLandmarkType.leftEye), rEye: lm(fc, FaceLandmarkType.rightEye), nose: lm(fc, FaceLandmarkType.noseBase), mouthL: lm(fc, FaceLandmarkType.leftMouth), mouthR: lm(fc, FaceLandmarkType.rightMouth), mouthB: lm(fc, FaceLandmarkType.bottomMouth), open: mouthOpen(fc)).map(map)).toList();
+        final FaceState? st = out.isEmpty ? null : out.reduce((a, b) => a.box.width * a.box.height >= b.box.width * b.box.height ? a : b).state(Size(pw, ph));
+        detErr = null;
+        if (mounted) {
+          setState(() {
+            faces = out;
+            if (st != null) {
+              _miss = 0;
+              if (fstate == null) foundAt = DateTime.now();
+              fstate = st.lerp(fstate, 0.7);
+            } else if (++_miss > 2) {
+              fstate = null;
+            }
+          });
+        }
+      } catch (e) {
+        detErr = '$e';
+        if (mounted) setState(() {});
+        await Future.delayed(const Duration(seconds: 1));
+      }
+      _snapping = false;
+      await Future.delayed(const Duration(milliseconds: 120));
+    }
+    await det.close();
   }
 
   @override
@@ -257,6 +327,9 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
       busy = true;
       flashWhite = true;
     });
+    while (_snapping) {
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
     HapticFeedback.mediumImpact();
     Future.delayed(const Duration(milliseconds: 140), () {
       if (mounted) setState(() => flashWhite = false);
@@ -431,7 +504,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
     if (found) {
       text = '${lens.emoji} Face found!${lens.hint.isNotEmpty ? '  ${lens.hint}' : ''}';
     } else if (detErr != null && waited) {
-      text = '⚠️ Face tracking problem: ${detErr!.length > 60 ? detErr!.substring(0, 60) : detErr}';
+      text = '⚠️ Face tracking problem: ${detErr!.length > 140 ? detErr!.substring(0, 140) : detErr}';
     } else if (!front && waited) {
       text = '🔍 Looking for a face… tap 🔄 for selfie';
     } else {
@@ -439,10 +512,10 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
     }
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
-      margin: const EdgeInsets.only(top: 4),
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 0),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(color: found ? const Color(0xCC2EAE5A) : Colors.black54, borderRadius: BorderRadius.circular(20)),
-      child: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
+      child: Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
     );
   }
 
