@@ -46,8 +46,30 @@ class LittleOneApp extends StatelessWidget {
     return ThemeData(
       colorScheme: cs,
       useMaterial3: true,
-      scaffoldBackgroundColor: b == Brightness.light ? const Color(0xFFFFF7FA) : const Color(0xFF1A1220),
-      cardTheme: CardThemeData(elevation: 0, color: b == Brightness.light ? Colors.white : const Color(0xFF251A2C), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)), margin: const EdgeInsets.symmetric(vertical: 8)),
+      scaffoldBackgroundColor: b == Brightness.light ? const Color(0xFFFCEAF2) : const Color(0xFF1A1220),
+      cardTheme: CardThemeData(
+        elevation: 5,
+        shadowColor: b == Brightness.light ? const Color(0x66E9A0BC) : Colors.black54,
+        surfaceTintColor: Colors.transparent,
+        color: b == Brightness.light ? Colors.white : const Color(0xFF251A2C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: b == Brightness.light ? Colors.white : Colors.white10, width: 1.5)),
+        margin: const EdgeInsets.symmetric(vertical: 8),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(elevation: 4, shadowColor: const Color(0x99D04477), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)), padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14)),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)), side: BorderSide(color: cs.primary.withValues(alpha: 0.4), width: 1.5)),
+      ),
+      chipTheme: ChipThemeData(elevation: 2, pressElevation: 0, shadowColor: const Color(0x55E9A0BC), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 10,
+        shadowColor: const Color(0x66E9A0BC),
+        backgroundColor: b == Brightness.light ? Colors.white : const Color(0xFF231828),
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: b == Brightness.light ? const Color(0xFFFFD9E6) : const Color(0xFF4A2338),
+        indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
       appBarTheme: AppBarTheme(backgroundColor: Colors.transparent, surfaceTintColor: Colors.transparent, titleTextStyle: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: cs.onSurface)),
       pageTransitionsTheme: const PageTransitionsTheme(builders: {TargetPlatform.android: ZoomPageTransitionsBuilder()}),
     );

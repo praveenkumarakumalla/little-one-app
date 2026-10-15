@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../clay.dart';
 import '../voice.dart';
 
 class FunSound {
@@ -178,20 +179,17 @@ class _FunPageState extends State<FunPage> {
         childAspectRatio: 0.9,
         children: [
           for (var i = 0; i < list.length; i++)
-            _Bouncy(
+            ClayButton(
               onTap: () => _play(list[i].file),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                decoration: BoxDecoration(
-                  color: _colors[i % _colors.length],
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: playing == list[i].file ? const Color(0xFFF2668B) : Colors.transparent, width: 3),
-                  boxShadow: [BoxShadow(color: _colors[i % _colors.length].withValues(alpha: 0.6), blurRadius: 10, offset: const Offset(0, 4))],
-                ),
-                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text(playing == list[i].file ? '🔊' : list[i].emoji, style: const TextStyle(fontSize: 34)),
-                  const SizedBox(height: 4),
-                  Text(list[i].name, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF3A2A35))),
+              color: _colors[i % _colors.length],
+              radius: 22,
+              depth: 6,
+              padding: const EdgeInsets.all(6),
+              child: Center(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text(playing == list[i].file ? '🔊' : list[i].emoji, style: const TextStyle(fontSize: 32)),
+                  const SizedBox(height: 2),
+                  Text(list[i].name, textAlign: TextAlign.center, maxLines: 2, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF3A2A35))),
                   Text('${list[i].secs.round()} s', style: const TextStyle(fontSize: 10, color: Color(0xFF6A5A65))),
                 ]),
               ),

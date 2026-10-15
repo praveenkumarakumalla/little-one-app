@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../clay.dart';
 import '../data.dart';
 import '../feed_alarm.dart';
 import '../store.dart';
@@ -140,15 +141,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  Widget _gradBox(_Pal p, Widget child, {double r = 30, EdgeInsets pad = const EdgeInsets.all(22)}) => Container(
-        padding: pad,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(r),
-          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [p.a, p.b]),
-          boxShadow: [BoxShadow(color: p.a.withValues(alpha: 0.45), blurRadius: 24, offset: const Offset(0, 10))],
-        ),
-        child: child,
-      );
+  Widget _gradBox(_Pal p, Widget child, {double r = 30, EdgeInsets pad = const EdgeInsets.all(22)}) => Clay(color: p.a, color2: p.b, radius: r, depth: 7, padding: pad, child: child);
 
   // ───────────── hero ─────────────
   Widget _hero(BuildContext context) {
@@ -350,26 +343,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   Widget _tile(BuildContext context, String pal, String emoji, String title, String sub, VoidCallback onTap, {String? action, double height = 112}) {
     final p = _pal(context, pal);
-    return _Pressable(
+    return ClayButton(
       onTap: onTap,
-      child: Container(
-        height: height,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(26),
-          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [p.a, p.b]),
-          boxShadow: [BoxShadow(color: p.a.withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 6))],
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      color: p.a,
+      color2: p.b,
+      radius: 26,
+      depth: 7,
+      padding: const EdgeInsets.all(14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Text(emoji, style: const TextStyle(fontSize: 28)),
             const Spacer(),
             if (action != null)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.7), borderRadius: BorderRadius.circular(12)),
-                child: Text(action, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF3A2A35))),
-              )
+              ClayPill(action)
             else
               Icon(Icons.arrow_forward_rounded, color: p.ink.withValues(alpha: 0.6)),
           ]),
@@ -377,7 +363,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: p.ink)),
           Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: p.ink.withValues(alpha: 0.8))),
         ]),
-      ),
     );
   }
 
@@ -414,7 +399,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 1.45,
+      childAspectRatio: 1.32,
       children: tiles,
     );
   }
@@ -612,19 +597,16 @@ class _GlowButton extends StatelessWidget {
   final VoidCallback onTap;
   const _GlowButton({required this.label, required this.sub, required this.onTap});
   @override
-  Widget build(BuildContext context) => _Pressable(
+  Widget build(BuildContext context) => ClayButton(
         onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            gradient: const LinearGradient(colors: [Color(0xFFF2668B), Color(0xFFFF8E72)]),
-            boxShadow: const [BoxShadow(color: Color(0x66F2668B), blurRadius: 16, offset: Offset(0, 6))],
-          ),
-          child: Column(children: [
-            Text(label, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900)),
-            Text(sub, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-          ]),
-        ),
+        color: const Color(0xFFF2668B),
+        color2: const Color(0xFFFF8E72),
+        radius: 22,
+        depth: 7,
+        padding: const EdgeInsets.symmetric(vertical: 13),
+        child: Column(children: [
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900, shadows: [Shadow(color: Color(0x55A0254A), offset: Offset(0, 1.5), blurRadius: 2)])),
+          Text(sub, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+        ]),
       );
 }
