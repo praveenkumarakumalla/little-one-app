@@ -220,10 +220,16 @@ class SleepWatch extends ChangeNotifier {
       unawaited(_followUp());
     } else if (e.mins >= 20 && !e.warned && quiet < 15) {
       e.warned = true;
-      unawaited(_speak('పాప ఇరవై నిమిషాలుగా ఏడుస్తోంది. జ్వరం ఉందేమో చూడండి. ఎంత చేసినా ఆగకపోతే, డాక్టర్‌కి ఫోన్ చేయండి.'));
+      unawaited(_speakClips(['w_20min'], 'పాప ఇరవై నిమిషాలుగా ఏడుస్తోంది. జ్వరం ఉందేమో చూడండి. ఎంత చేసినా ఆగకపోతే, డాక్టర్‌కి ఫోన్ చేయండి.'));
     } else if (e.mins >= 90) {
       unawaited(_calm(manual: true, quiet: true));
     }
+  }
+
+  Future<void> _speakClips(List<String> keys, String t, {double volume = 1.0}) async {
+    _muteUntil = DateTime.now().add(const Duration(seconds: 3));
+    await Voice.i.sayClips(keys, t, volume: volume);
+    _muteUntil = DateTime.now().add(const Duration(milliseconds: 1200));
   }
 
   Future<void> _speak(String t, {double volume = 1.0}) async {
@@ -247,7 +253,7 @@ class SleepWatch extends ChangeNotifier {
     await Bg.update('😢 She is crying · ${hm(e.start)}', 'Likely ${top.en.toLowerCase()} — ${top.todo}');
     notifyListeners();
     final soundTe = e.sound!.kind == 'mixed' ? '' : '${e.sound!.te} ';
-    await _speak('పాప ఏడుస్తోంది. $soundTe${top.say}');
+    await _speakClips(['p_crying', if (e.sound!.kind != 'mixed') 's_${e.sound!.kind}', top.clip], 'పాప ఏడుస్తోంది. $soundTe${top.say}');
   }
 
   Future<void> _followUp() async {
@@ -256,7 +262,9 @@ class SleepWatch extends ChangeNotifier {
     e.lastPrompt = DateTime.now();
     e.prompts++;
     String t;
+    var keys = <String>[];
     if (e.prompts >= 3) {
+      keys = ['w_soothe'];
       t = 'ఇంకా ఏడుస్తోంది. ఎత్తుకుని, భుజం మీద వేసుకుని, నెమ్మదిగా ఊపుతూ, చెవి దగ్గర ష్ ష్ అనండి. వెచ్చగా చుట్టి పట్టుకోండి.';
       _log('Still crying ${e.mins} min → soothing tips');
     } else {
@@ -265,12 +273,13 @@ class SleepWatch extends ChangeNotifier {
       }
       final r = e.reasons[e.next.clamp(0, e.reasons.length - 1)];
       e.next++;
+      keys = ['p_still', r.clip];
       t = 'ఇంకా ఏడుస్తోంది. ఇప్పుడు ఇది చూడండి: ${r.say}';
       _log('Still crying ${e.mins} min → try ${r.en.toLowerCase()}');
       await Bg.update('😢 Still crying · ${e.mins} min', 'Try: ${r.en} — ${r.todo}');
     }
     notifyListeners();
-    await _speak(t);
+    await _speakClips(keys, t);
   }
 
   /// Parents tell the app what they're doing right now.

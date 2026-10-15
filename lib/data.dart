@@ -91,6 +91,7 @@ class CryReason {
   final double score;
   final String te, en, why, todo, say;
   CryReason(this.key, this.score, this.te, this.en, this.why, this.todo, this.say);
+  String get clip => 'c_$key';
 }
 
 /// Most likely reasons for crying, from her feed / nappy / sleep log, the hour and her age.

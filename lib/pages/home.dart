@@ -529,7 +529,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   void _crySheet(BuildContext context) {
     final r = cryReasons(), top = r.first;
     final idF = Store.i.addCry('manual', top.key);
-    unawaited(Voice.i.say(top.say));
+    unawaited(Voice.i.sayClips([top.clip], top.say));
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -552,7 +552,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 Text(top.why, textAlign: TextAlign.center),
                 const SizedBox(height: 6),
                 Text(top.todo, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w600)),
-                TextButton.icon(onPressed: () => Voice.i.say(top.say), icon: const Icon(Icons.volume_up), label: const Text('మళ్ళీ చెప్పు')),
+                TextButton.icon(onPressed: () => Voice.i.sayClips([top.clip], top.say), icon: const Icon(Icons.volume_up), label: const Text('మళ్ళీ చెప్పు')),
               ]),
             ),
           ),

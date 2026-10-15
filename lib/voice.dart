@@ -32,6 +32,17 @@ class Voice {
     return true;
   }
 
+  /// Plays the clips one after another in the baby voice; if any clip is missing, speaks [text] with the phone voice.
+  Future<void> sayClips(List<String> keys, String text, {double volume = 1.0}) async {
+    if (keys.isNotEmpty && keys.every(clips.contains)) {
+      for (final k in keys) {
+        await clip(k, volume: volume);
+      }
+    } else {
+      await say(text, volume: volume);
+    }
+  }
+
   Future<void> init() async {
     try {
       final m = await AssetManifest.loadFromAssetBundle(rootBundle);

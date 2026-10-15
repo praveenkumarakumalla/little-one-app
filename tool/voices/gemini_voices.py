@@ -11,7 +11,9 @@ LINES = json.load(open(os.path.join(ROOT, "tool", "voices", "lines.json"), encod
 KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 STYLE = "a cute, sweet, happy little 3-year-old girl talking to her family in Telugu; playful, loving, slightly slow and very clear"
 SAMPLE_VOICES = ["Leda", "Laomedeia", "Zephyr", "Autonoe"]
-PRIORITY = ["amma", "nanna", "ammamma", "tatayya", "biryani", "pizza", "ram", "milk", "okay_amma", "shh", "snooze", "calm", "ok"]
+PRIORITY = ["amma", "nanna", "ammamma", "tatayya", "biryani", "pizza", "ram", "milk", "okay_amma", "shh", "snooze", "calm", "ok",
+            "p_crying", "p_still", "c_hungry", "c_burp", "c_nappy", "c_sleep", "c_cuddle", "c_temp", "c_colic", "c_noise", "c_unwell",
+            "s_hunger", "s_pain", "s_tired", "s_fuss", "w_soothe", "w_20min", "remember"]
 
 
 def post(url, body):

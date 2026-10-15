@@ -4,6 +4,7 @@ import 'package:alarm/alarm.dart';
 import 'package:flutter/material.dart';
 
 import 'store.dart';
+import 'voice.dart';
 
 /// Schedules the "అమ్మా, పాలు కావాలి" alarm. It rings even when the app is closed.
 class FeedAlarm {
@@ -34,7 +35,7 @@ class FeedAlarm {
     final settings = AlarmSettings(
       id: id,
       dateTime: at,
-      assetAudioPath: 'assets/audio/alarm.wav',
+      assetAudioPath: Voice.i.hasClip('milk') ? 'assets/voice/milk.m4a' : 'assets/audio/alarm.wav',
       loopAudio: true,
       vibrate: true,
       warningNotificationOnKill: Platform.isIOS,

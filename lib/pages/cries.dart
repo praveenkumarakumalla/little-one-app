@@ -37,7 +37,7 @@ Future<void> askWhatCalmed(BuildContext context, String id) async {
                       if (a[0] == 'unwell' && context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: Duration(seconds: 8), content: Text('If she has fever 38°C+, breathing trouble, is floppy, not feeding or crying weakly — see a doctor today or call 108.')));
                       } else {
-                        unawaited(Voice.i.say('సరే, గుర్తు పెట్టుకున్నాను.'));
+                        unawaited(Voice.i.sayClips(['remember'], 'సరే, గుర్తు పెట్టుకున్నాను.'));
                       }
                     },
                   ))
