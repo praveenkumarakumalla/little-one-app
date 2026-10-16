@@ -1,5 +1,7 @@
 import 'package:file_selector/file_selector.dart' show openFile, XTypeGroup;
 import 'package:flutter/material.dart';
+
+import '../updater.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../data.dart';
@@ -90,6 +92,13 @@ class _ProfilePageState extends State<ProfilePage> {
           child: const Text('Save'),
         ),
         const Divider(height: 40),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Text('🎁', style: TextStyle(fontSize: 26)),
+          title: const Text('Check for app updates'),
+          subtitle: const Text('The app also checks by itself and asks you to update'),
+          onTap: () => Updater.check(context, manual: true),
+        ),
         const Text('Backup', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
         const Text('Save feeds, notes, vaccines and events to Google Drive or WhatsApp, so nothing is lost if the phone changes. Photos stay in the phone gallery.'),
         const SizedBox(height: 8),

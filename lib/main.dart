@@ -10,6 +10,7 @@ import 'feed_alarm.dart';
 import 'games/games_page.dart';
 import 'moments.dart';
 import 'talk.dart';
+import 'updater.dart';
 import 'pages/camera.dart';
 import 'pages/voices.dart';
 import 'pages/health.dart';
@@ -127,6 +128,13 @@ class _ShellState extends State<Shell> {
       try {
         if (Store.i.settings['autoWatch'] == true) await SleepWatch.i.start();
       } catch (_) {}
+      await Future.delayed(const Duration(seconds: 4));
+      final ctx = navKey.currentContext;
+      if (ctx != null && ctx.mounted) unawaited(Updater.check(ctx));
+    });
+    Timer.periodic(const Duration(hours: 3), (_) {
+      final ctx = navKey.currentContext;
+      if (ctx != null && ctx.mounted) unawaited(Updater.check(ctx));
     });
   }
 
