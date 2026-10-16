@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
+import 'cry_ml.dart';
+
 import 'clay.dart';
 
 import 'bg.dart';
@@ -63,6 +65,7 @@ class SleepWatch extends ChangeNotifier {
     final p = await Permission.microphone.request();
     if (!p.isGranted) return 'Allow the microphone so the app can listen.';
     await Permission.notification.request();
+    unawaited(CryML.i.init());
     bgOk = await Bg.start('🎧 Little One is listening', 'Sleep watch is on. It will speak if she cries.');
     final stream = await _rec.startStream(const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: sr, numChannels: 1, autoGain: false, echoCancel: false, noiseSuppress: false));
     _base = null;
@@ -145,7 +148,10 @@ class SleepWatch extends ChangeNotifier {
     return [0, 0];
   }
 
+  int _n = 0;
   void _analyze(List<double> f) {
+    CryML.i.add(f);
+    if (++_n % 5 == 0) unawaited(CryML.i.run());
     var rms = 0.0;
     for (final x in f) {
       rms += x * x;
@@ -178,7 +184,14 @@ class SleepWatch extends ChangeNotifier {
     final loud = db > base + sens;
     if (!loud && ep == null) _base = base * 0.995 + db * 0.005;
     final pc = loud ? pitchOf(f) : [0.0, 0.0];
-    final cry = loud && pc[0] >= 300 && pc[0] <= 1000 && pc[1] > 0.5;
+    final ml = CryML.i;
+    final bool cry;
+    if (ml.ready) {
+      // the AI decides whether it is really a baby crying (not TV, talking, the cooker…)
+      cry = (ml.cry >= 0.22 && (loud || db > base + sens * 0.6)) || (ml.cry >= 0.5 && db > base + 4);
+    } else {
+      cry = loud && pc[0] >= 300 && pc[0] <= 1000 && pc[1] > 0.5;
+    }
     hist.add(Fr(db - base, loud, pc[0], pc[1], cry));
     if (hist.length > 200) hist.removeAt(0);
 
@@ -186,13 +199,17 @@ class SleepWatch extends ChangeNotifier {
       _episodeFrame(cry, now, sens);
       return;
     }
-    state = cry ? 'Hearing a baby cry…' : loud ? 'Hearing loud sound…' : 'Listening… room is quiet';
+    state = cry
+        ? 'Hearing a baby cry…${ml.ready ? ' (AI ${(ml.cry * 100).round()}%)' : ''}'
+        : loud
+            ? (ml.ready && ml.speech > 0.4 ? 'Hearing people talk – not a cry' : 'Hearing loud sound – not a cry')
+            : 'Listening… room is quiet';
     notifyListeners();
     if (hist.length < 30) return;
     final last = hist.sublist(hist.length - 30);
     final nLoud = last.where((x) => x.loud).length, nCry = last.where((x) => x.cry).length;
     final st = Store.i.settings;
-    if (nCry >= 13 && st['wCry'] != false && now.difference(_epEnded).inSeconds > 60) {
+    if (nCry >= (ml.ready ? 10 : 13) && st['wCry'] != false && now.difference(_epEnded).inSeconds > 60) {
       ep = CryEpisode();
       state = 'She is crying — listening to her cry…';
       _log('Heard her cry — listening to the rhythm');
@@ -209,9 +226,9 @@ class SleepWatch extends ChangeNotifier {
     final quiet = now.difference(e.lastCry).inSeconds;
     if (e.phase == 0) {
       e.frames++;
-      state = 'She is crying — listening to her cry… ${(8 - e.frames / 10).clamp(0, 8).round()}s';
+      state = 'She is crying — listening to her cry… ${(5 - e.frames / 10).clamp(0, 5).round()}s';
       notifyListeners();
-      if (e.frames >= 80) unawaited(_firstPrompt(sens));
+      if (e.frames >= 50) unawaited(_firstPrompt(sens));
       return;
     }
     state = quiet < 10 ? 'Crying · ${e.mins} min' : 'Quiet for $quiet s…';
@@ -245,7 +262,7 @@ class SleepWatch extends ChangeNotifier {
     if (e == null || e.phase != 0) return;
     e.phase = 1;
     e.lastPrompt = DateTime.now();
-    final win = hist.length > 110 ? hist.sublist(hist.length - 110) : List<Fr>.from(hist);
+    final win = hist.length > 90 ? hist.sublist(hist.length - 90) : List<Fr>.from(hist);
     e.sound = analyseCry(win, sens);
     e.reasons = cryReasons(sound: e.sound);
     final top = e.reasons.first;
