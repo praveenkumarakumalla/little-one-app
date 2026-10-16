@@ -18,7 +18,9 @@ class HealthPage extends StatelessWidget {
         ),
         body: ListenableBuilder(
           listenable: Store.i,
-          builder: (context, _) => const TabBarView(children: [_Vaccines(), _Events(), _Notes(), _Growth()]),
+          // not const: the tabs must rebuild when something is saved
+          // ignore: prefer_const_constructors
+          builder: (context, _) => TabBarView(children: [_Vaccines(), _Events(), _Notes(), _Growth()]),
         ),
       ),
     );
@@ -191,6 +193,9 @@ class _NotesState extends State<_Notes> {
             if (c.text.trim().isEmpty) return;
             await Store.i.addItem('notes', {'id': Store.newId(), 'text': c.text.trim(), 'tag': tag, 'at': DateTime.now().millisecondsSinceEpoch});
             c.clear();
+            FocusManager.instance.primaryFocus?.unfocus();
+            if (mounted) setState(() {});
+            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Note saved ✓ (shown below)')));
           },
           child: const Text('Save note'),
         ),
