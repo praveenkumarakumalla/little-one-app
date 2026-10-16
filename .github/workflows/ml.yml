@@ -1,0 +1,43 @@
+name: Get cry-detection model
+
+on: workflow_dispatch
+
+permissions:
+  contents: write
+
+jobs:
+  get:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download YAMNet (Google AudioSet sound classifier, Apache-2.0)
+        run: |
+          mkdir -p assets/ml
+          ok=0
+          for u in \
+            "https://tfhub.dev/google/lite-model/yamnet/classification/tflite/1?lite-format=tflite" \
+            "https://storage.googleapis.com/tfhub-lite-models/google/lite-model/yamnet/classification/tflite/1.tflite" \
+            "https://storage.googleapis.com/download.tensorflow.org/models/tflite/task_library/audio_classification/android/lite-model_yamnet_classification_tflite_1.tflite"; do
+            if curl -fsSL -o assets/ml/yamnet.tflite "$u" && [ "$(stat -c%s assets/ml/yamnet.tflite)" -gt 1000000 ]; then ok=1; echo "::notice title=ml::got model from $u ($(stat -c%s assets/ml/yamnet.tflite) bytes)"; break; fi
+          done
+          if [ $ok = 0 ]; then
+            curl -fsSL -o /tmp/y.tgz "https://www.kaggle.com/api/v1/models/google/yamnet/tfLite/classification-tflite/1/download" && tar xzf /tmp/y.tgz -C /tmp && cp /tmp/*.tflite assets/ml/yamnet.tflite && ok=1 && echo "::notice title=ml::got model from kaggle"
+          fi
+          [ $ok = 1 ] || { echo "::error title=ml::could not download the model"; exit 1; }
+          pip install -q tflite-runtime 2>/dev/null || pip install -q tensorflow-cpu
+          python3 - <<'PY'
+          try:
+              from tflite_runtime.interpreter import Interpreter
+          except ImportError:
+              from tensorflow.lite.python.interpreter import Interpreter
+          it = Interpreter(model_path="assets/ml/yamnet.tflite"); it.allocate_tensors()
+          print("::notice title=ml::inputs", [(d['name'], list(d['shape']), str(d['dtype'])) for d in it.get_input_details()])
+          print("::notice title=ml::outputs", [(d['name'], list(d['shape']), str(d['dtype'])) for d in it.get_output_details()])
+          PY
+      - name: Save
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/ml
+          git commit -m "Add YAMNet cry-detection model [skip ci]" || exit 0
+          git pull --rebase && git push
