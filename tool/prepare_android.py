@@ -74,7 +74,7 @@ for name in ("settings.gradle.kts", "settings.gradle"):
 # ---- gradle.properties ----
 gp = os.path.join(A, "gradle.properties")
 s = read(gp)
-for line in ("android.useAndroidX=true", "android.enableJetifier=true"):
+for line in ("android.useAndroidX=true", "android.enableJetifier=true", "kotlin.jvm.target.validation.mode=IGNORE"):
     if line.split("=")[0] not in s: s += "\n" + line
 write(gp, s + "\n")
 
