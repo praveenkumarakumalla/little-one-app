@@ -236,7 +236,7 @@
       m.scale.setScalar(0.85);
       for (let i = 0; i < dice; i++) {
         posn[p]++;
-        G.snd.hop();
+        G.snd.hop(i);
         await G.hopTo(m, cellPos(posn[p], 0), 230, 0.5);
       }
       G.snd.wood();

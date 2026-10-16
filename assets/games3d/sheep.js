@@ -158,7 +158,6 @@
     queue[side].push(weightPick());
     sheep.push({ id: nextId++, lane, side, w, z: z0, v: 0 });
     cd[side] = COOLDOWN;
-    G.snd.tone(side ? 330 : 440, 0.18, 'triangle', 0.25, 0, side ? 260 : 520);
     return true;
   }
 
@@ -203,7 +202,7 @@
   }
 
   function scored(side, w) {
-    G.snd.home();
+    G.snd.point(players.some((p, i) => teamOf(i) === side && G.mine(p)));
     G.toast(`+${w} ${teamName(side)} 🐑`, 900);
   }
 
@@ -259,6 +258,7 @@
   const packState = () => ({ s: sheep.map((s) => [s.id, s.lane, s.side, s.w, Math.round(s.z * 100) / 100, s.push ? 1 : 0]), sc: score, q: queue.map((q) => q.slice(0, 3)), cd, over });
 
   // ───────── drawing ─────────
+  let bumpT = 0;
   function syncMeshes(list, dt, t) {
     const seen = new Set();
     for (const s of list) {
@@ -270,7 +270,14 @@
         root.add(m);
         meshes.set(s.id, m);
         m.userData.z = s.z;
+        G.snd.baa(s.side);
       }
+      if (s.push && !m.userData.push && t - bumpT > 0.25) {
+        bumpT = t;
+        G.snd.bump();
+        if (Math.random() < 0.35) G.snd.baa(s.side);
+      }
+      m.userData.push = s.push;
       m.userData.z += (s.z - m.userData.z) * Math.min(1, dt * 12);
       m.position.x = laneX(s.lane);
       m.position.z = m.userData.z;
@@ -324,7 +331,7 @@
       b.style.background = `linear-gradient(${G.shade(TEAM[side].col, 0.15)}, ${TEAM[side].col})`;
       b.textContent = '🐑';
       const lane = side === 0 ? l : LANES - 1 - l;
-      b.onpointerdown = (e) => { e.preventDefault(); G.snd.unlock(); G.haptic('light'); G.sendInput({ lane: where === 'top' ? LANES - 1 - l : lane, side }); };
+      b.onpointerdown = (e) => { e.preventDefault(); G.haptic('light'); G.sendInput({ lane: where === 'top' ? LANES - 1 - l : lane, side }); };
       row.appendChild(b);
     }
     const nx = document.createElement('div');
@@ -393,6 +400,7 @@
         }
       }
       G.status(teamName(0) + ' 🆚 ' + teamName(1) + ' – first to ' + TARGET + ' points');
+      G.snd.loop('meadow', 0.22);
       if (G.runsBots()) restartSim();
     },
     input(a, from) {
@@ -410,7 +418,7 @@
         if (s.over) { const w = s.sc[0] >= s.sc[1] ? 0 : 1; G.confetti(new THREE.Vector3(0, 0, 0), 10); G.winScreen(teamName(w) + ' win! 🐑🎉', `${s.sc[0]} – ${s.sc[1]}`, () => {}); }
         else G.$('win').classList.remove('show');
       }
-      if (lastState && (s.sc[0] > lastState.sc[0] || s.sc[1] > lastState.sc[1])) G.snd.home();
+      if (lastState && (s.sc[0] > lastState.sc[0] || s.sc[1] > lastState.sc[1])) { const sd = s.sc[0] > lastState.sc[0] ? 0 : 1; G.snd.point(players.some((p, i) => teamOf(i) === sd && G.mine(p))); }
       lastState = s;
     },
     apply() {},

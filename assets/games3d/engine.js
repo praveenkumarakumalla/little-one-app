@@ -9,18 +9,86 @@ G.post = (m) => {
 };
 G.haptic = (k) => G.post('haptic:' + (k || 'light'));
 
-// ───────────── sound (synthesised, no files) ─────────────
+// ───────────── sound: real recordings (sfx.js) with synthesised fall-backs ─────────────
 const Snd = (G.snd = {
   ctx: null,
   on: true,
+  buf: {},
+  _loops: {},
   unlock() {
     if (!this.ctx) {
       try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+      const comp = this.ctx.createDynamicsCompressor();
+      comp.threshold.value = -14;
+      comp.knee.value = 10;
+      comp.ratio.value = 4;
+      comp.connect(this.ctx.destination);
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.9;
-      this.master.connect(this.ctx.destination);
+      this.master.gain.value = 1.0;
+      this.master.connect(comp);
+      this._decodeAll();
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
+  },
+  _decodeAll() {
+    const data = window.SFX_DATA || {};
+    for (const name of Object.keys(data)) {
+      this.buf[name] = [];
+      data[name].forEach((url, i) => {
+        try {
+          const b64 = url.slice(url.indexOf(',') + 1), bin = atob(b64), u = new Uint8Array(bin.length);
+          for (let k = 0; k < bin.length; k++) u[k] = bin.charCodeAt(k);
+          const done = (ab) => { this.buf[name][i] = ab; if (this._pendingLoop && this._pendingLoop[name]) this.loop(name, this._pendingLoop[name]); };
+          const pr = this.ctx.decodeAudioData(u.buffer, done, () => {});
+          if (pr && pr.catch) pr.catch(() => {});
+        } catch (e) {}
+      });
+    }
+  },
+  has(name) { const l = this.buf[name]; return !!(l && l.some(Boolean)); },
+  /** Play a recorded sound. Returns false when it isn't available (then the caller synthesises one). */
+  play(name, o) {
+    if (!this.ok()) return true; // muted / fast-forward: pretend it played
+    const l = (this.buf[name] || []).filter(Boolean);
+    if (!l.length) return false;
+    o = o || {};
+    const c = this.ctx, t = c.currentTime + (o.when || 0);
+    const src = c.createBufferSource();
+    src.buffer = l[Math.floor(Math.random() * l.length)];
+    const vary = o.vary == null ? 0.06 : o.vary;
+    src.playbackRate.value = (o.rate || 1) * (1 + (Math.random() * 2 - 1) * vary);
+    const g = c.createGain();
+    g.gain.value = (o.vol == null ? 0.8 : o.vol) * (1 + (Math.random() - 0.5) * 0.15);
+    let node = g;
+    if (o.pan && c.createStereoPanner) { const p = c.createStereoPanner(); p.pan.value = o.pan; g.connect(p); node = p; }
+    src.connect(g);
+    node.connect(this.master);
+    src.start(t);
+    return true;
+  },
+  /** Gentle background ambience (looped). */
+  loop(name, vol) {
+    if (!this.ctx || !this.on) { (this._pendingLoop = this._pendingLoop || {})[name] = vol; return; }
+    if (this._loops[name]) return;
+    const l = (this.buf[name] || []).filter(Boolean);
+    if (!l.length) { (this._pendingLoop = this._pendingLoop || {})[name] = vol; return; }
+    if (this._pendingLoop) delete this._pendingLoop[name];
+    const src = this.ctx.createBufferSource(), g = this.ctx.createGain();
+    src.buffer = l[0];
+    src.loop = true;
+    g.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+    g.gain.linearRampToValueAtTime(vol || 0.25, this.ctx.currentTime + 2);
+    src.connect(g);
+    g.connect(this.master);
+    src.start();
+    this._loops[name] = { src, g };
+  },
+  stopLoops() {
+    for (const k of Object.keys(this._loops)) { try { this._loops[k].src.stop(); } catch (e) {} delete this._loops[k]; }
+  },
+  setOn(v) {
+    this.on = v;
+    if (this.master) this.master.gain.value = v ? 1 : 0;
   },
   _noise(dur) {
     const c = this.ctx, n = Math.floor(c.sampleRate * dur), b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0);
@@ -62,13 +130,32 @@ const Snd = (G.snd = {
     s.start(t);
     s.stop(t + dur + 0.05);
   },
+  /** a soft bell note with overtones – for chimes when no recording */
+  bellTone(freq, when, vol) {
+    [1, 2.01, 3.02, 4.1].forEach((m, i) => this.tone(freq * m, 1.1 / (i + 1), 'sine', (vol || 0.2) / (i + 1.3), when));
+  },
   ok() { return !G.fast && this.on && this.ctx && this.ctx.state !== 'closed'; },
-  // game sounds
-  wood() { this.hit(1800, 0.06, 0.7); this.tone(420, 0.09, 'triangle', 0.35, 0, 240); },
-  place() { this.hit(1300, 0.08, 0.9); this.tone(300, 0.12, 'triangle', 0.4, 0, 160); },
-  select() { this.tone(880, 0.07, 'sine', 0.18); this.tone(1320, 0.06, 'sine', 0.12, 0.04); },
-  hop() { this.tone(520, 0.08, 'sine', 0.22, 0, 760); this.hit(2500, 0.03, 0.25); },
+  /** voice shout ("UNO!", "Check!") */
+  say(key, vol) { return this.play(key, { vol: vol == null ? 0.95 : vol, vary: 0 }); },
+
+  // ───── board pieces ─────
+  wood() { this.play('chess_move', { vol: 0.7 }) || (this.hit(1800, 0.06, 0.7), this.tone(420, 0.09, 'triangle', 0.35, 0, 240)); },
+  place() { this.play('chess_move', { vol: 0.95 }) || (this.hit(1300, 0.08, 0.9), this.tone(300, 0.12, 'triangle', 0.4, 0, 160)); },
+  lift() { this.play('click', { vol: 0.35, rate: 1.2 }) || this.tone(1320, 0.05, 'sine', 0.1); },
+  take() {
+    if (!this.play('chess_take', { vol: 0.95 })) this.capture();
+    this.play('whoosh', { vol: 0.3, when: 0.05, rate: 1.2 });
+  },
+  select() { this.play('click', { vol: 0.5 }) || (this.tone(880, 0.07, 'sine', 0.18), this.tone(1320, 0.06, 'sine', 0.12, 0.04)); },
+  hop(i) {
+    if (!this.play('piece_tap', { vol: 0.75, rate: 1 + (i || 0) * 0.03 })) { this.tone(520, 0.08, 'sine', 0.22, 0, 760); this.hit(2500, 0.03, 0.25); }
+  },
   dice() {
+    if (this.has('dice')) {
+      this.play('dice_shake', { vol: 0.6 });
+      this.play('dice', { vol: 0.95, when: this.has('dice_shake') ? 0.25 : 0 });
+      return;
+    }
     for (let i = 0; i < 9; i++) {
       const w = i * 0.055 + Math.random() * 0.03;
       this.hit(2200 + Math.random() * 2500, 0.03, 0.5 - i * 0.04, w, 6);
@@ -76,6 +163,13 @@ const Snd = (G.snd = {
     }
   },
   capture() {
+    if (this.has('pop')) {
+      this.play('whoosh', { vol: 0.6 });
+      this.play('pop', { vol: 0.9, when: 0.08 });
+      this.play('hop', { vol: 0.5, when: 0.2, rate: 0.8 });
+      this.say('v_capture', 0.8);
+      return;
+    }
     if (!this.ok()) return;
     const c = this.ctx, t = c.currentTime;
     const s = this._noise(0.45), f = c.createBiquadFilter();
@@ -88,8 +182,17 @@ const Snd = (G.snd = {
     s.start(t);
     this.tone(160, 0.25, 'sine', 0.6, 0.05, 60);
   },
-  ladder() { [523, 659, 784, 1047, 1319].forEach((n, i) => this.tone(n, 0.16, 'triangle', 0.25, i * 0.08)); },
+  ladder() {
+    if (!this.play('zip_up', { vol: 0.75, vary: 0 })) [523, 659, 784, 1047, 1319].forEach((n, i) => this.tone(n, 0.16, 'triangle', 0.25, i * 0.08));
+    this.play('chime', { vol: 0.5, when: 0.5 });
+    this.say('v_ladder');
+  },
   snake() {
+    if (this.play('hiss', { vol: 0.85 })) {
+      this.play('zip_down', { vol: 0.6, when: 0.35, vary: 0 });
+      this.say('v_snake');
+      return;
+    }
     this.tone(700, 0.7, 'sawtooth', 0.12, 0, 120);
     if (!this.ok()) return;
     const c = this.ctx, t = c.currentTime, s = this._noise(0.6), f = c.createBiquadFilter();
@@ -99,16 +202,78 @@ const Snd = (G.snd = {
     this._env(f, t, 0.05, 0.25, 0.55);
     s.start(t);
   },
-  six() { [1047, 1319, 1568, 2093].forEach((n, i) => this.tone(n, 0.12, 'sine', 0.18, i * 0.05)); },
-  check() { this.tone(660, 0.12, 'square', 0.12); this.tone(660, 0.12, 'square', 0.12, 0.16); },
-  home() { [784, 988, 1175, 1568].forEach((n, i) => this.tone(n, 0.2, 'triangle', 0.25, i * 0.09)); },
+  six() {
+    if (!this.play('chime', { vol: 0.55 })) [1047, 1319, 1568, 2093].forEach((n, i) => this.tone(n, 0.12, 'sine', 0.18, i * 0.05));
+    this.say('v_six', 0.85);
+  },
+  check() {
+    if (!this.play('bell', { vol: 0.6, vary: 0 })) { this.bellTone(880, 0, 0.25); this.bellTone(880, 0.18, 0.2); }
+    this.say('v_check');
+  },
+  checkmate() {
+    this.play('bell', { vol: 0.7, vary: 0 }) || this.bellTone(660, 0, 0.3);
+    this.say('v_checkmate');
+  },
+  home() {
+    if (!this.play('chime', { vol: 0.65 })) [784, 988, 1175, 1568].forEach((n, i) => this.tone(n, 0.2, 'triangle', 0.25, i * 0.09));
+    this.say('v_home', 0.8);
+  },
   win() {
+    const rec = this.play('fanfare', { vol: 0.75, vary: 0 });
+    this.play('cheer', { vol: 0.6, when: 0.3, vary: 0 }) || this.play('applause', { vol: 0.6, when: 0.3, vary: 0 });
+    this.say('v_win');
+    if (rec) return;
     const seq = [[523, 0], [659, 0.12], [784, 0.24], [1047, 0.36], [784, 0.52], [1047, 0.64]];
     seq.forEach(([n, w]) => { this.tone(n, 0.28, 'triangle', 0.3, w); this.tone(n / 2, 0.28, 'sine', 0.2, w); });
     [523, 659, 784].forEach((n) => this.tone(n * 2, 0.9, 'sine', 0.15, 0.8));
   },
-  tick() { this.tone(1200, 0.03, 'square', 0.06); },
+  lose() { this.play('fail', { vol: 0.6, vary: 0 }) || [392, 370, 349, 330].forEach((n, i) => this.tone(n, 0.3, 'triangle', 0.2, i * 0.25)); },
+  turn() { this.play('click', { vol: 0.4, rate: 0.8 }) || this.tone(880, 0.1, 'sine', 0.15); },
+  error() { this.tone(220, 0.1, 'square', 0.08); this.tone(180, 0.14, 'square', 0.08, 0.08); },
+  tick() { this.play('click', { vol: 0.25, rate: 1.5 }) || this.tone(1200, 0.03, 'square', 0.06); },
+
+  // ───── cards ─────
+  card() {
+    if (!this.play('card_play', { vol: 1 })) { this.hit(2400, 0.08, 0.6, 0, 1.2); this.tone(520, 0.1, 'triangle', 0.2, 0, 300); }
+  },
+  cardDraw(when) { this.play('card_draw', { vol: 0.8, when }) || this.hit(1800, 0.12, 0.4, when || 0, 1); },
+  deal(i) { this.play('card_draw', { vol: 0.5, rate: 1.25 }) || this.play('card_play', { vol: 0.35, rate: 1.3 }) || this.hit(3000, 0.04, 0.25); },
+  shuffle() { this.play('shuffle', { vol: 0.85, vary: 0 }) || this.dice(); },
+  uno() {
+    if (!this.say('v_uno', 1)) { this.tone(988, 0.25, 'sine', 0.3); this.tone(1319, 0.45, 'sine', 0.25, 0.12); }
+    this.play('bell', { vol: 0.35, when: 0.1, vary: 0 });
+  },
+
+  // ───── sheep ─────
+  baa(side) {
+    if (this.play('sheep', { vol: 0.8, rate: side ? 0.92 : 1.08, vary: 0.08, pan: side ? -0.3 : 0.3 })) return;
+    // synthesised bleat: wobbling buzzy voice through a vowel filter
+    if (!this.ok()) return;
+    const c = this.ctx, t = c.currentTime, f0 = side ? 330 : 420;
+    const o = c.createOscillator(), lfo = c.createOscillator(), lg = c.createGain(), bp = c.createBiquadFilter();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.linearRampToValueAtTime(f0 * 0.85, t + 0.55);
+    lfo.frequency.value = 22;
+    lg.gain.value = f0 * 0.06;
+    lfo.connect(lg);
+    lg.connect(o.frequency);
+    bp.type = 'bandpass';
+    bp.frequency.value = 1100;
+    bp.Q.value = 2;
+    o.connect(bp);
+    this._env(bp, t, 0.04, 0.35, 0.55);
+    o.start(t); lfo.start(t);
+    o.stop(t + 0.7); lfo.stop(t + 0.7);
+  },
+  bump() { this.play('bump', { vol: 0.55 }) || this.tone(120, 0.12, 'sine', 0.35, 0, 70); },
+  point(mine) {
+    this.play('coin', { vol: 0.7 }) || this.home();
+    if (mine) this.say('v_point', 0.8);
+  },
 });
+document.addEventListener('pointerdown', () => Snd.unlock(), { capture: true, passive: true });
+document.addEventListener('touchstart', () => Snd.unlock(), { capture: true, passive: true });
 
 // ───────────── renderer / scene ─────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -613,7 +778,7 @@ G.winScreen = function (title, sub, again) {
 G.$('back').onclick = () => G.post('exit');
 G.$('cam').onclick = () => G.resetView();
 G.$('sound').onclick = () => {
-  Snd.on = !Snd.on;
+  Snd.setOn(!Snd.on);
   G.$('sound').textContent = Snd.on ? '🔊' : '🔇';
 };
 G.$('exitWin').onclick = () => G.post('exit');

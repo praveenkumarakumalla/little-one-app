@@ -367,7 +367,7 @@
     const hop = G.hopTo(piece, sqPos(m[1]), 260 + dist * 70, t === 2 ? 1.1 : 0.35 + dist * 0.06);
     if (victim && victim !== piece) {
       await G.wait(180 + dist * 50);
-      G.snd.capture();
+      G.snd.take();
       G.haptic('medium');
       toGrave(victim, vVal);
     }
@@ -405,7 +405,7 @@
     for (const lm of lastMarks) root.remove(lm);
     lastMarks = [markSq(m[0], 0xffe14d, 'sq'), markSq(m[1], 0xffe14d, 'sq')];
     refresh();
-    if (inCheck(pos, pos.side)) { G.snd.check(); G.toast('Check! ⚠️'); }
+    if (inCheck(pos, pos.side)) { if (legal(pos).length) G.snd.check(); else G.snd.checkmate(); G.toast('Check! ⚠️'); }
     busy = false;
     if (over) return;
     nextTurn();

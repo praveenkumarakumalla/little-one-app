@@ -84,8 +84,8 @@
     el.uno.onclick = () => {
       unoPressed = true;
       el.uno.classList.add('on');
-      G.snd.tone(988, 0.25, 'sine', 0.3);
-      G.snd.tone(1319, 0.4, 'sine', 0.25, 0.1);
+      G.snd.uno();
+      G.haptic('medium');
       G.toast('UNO! 🔔');
     };
     el.pass.onclick = () => { if (G.mine(players[turn]) && drew) G.act({ t: 'pass', n: step }); };
@@ -306,12 +306,14 @@
     over = false;
     drew = false;
     render();
+    G.snd.shuffle();
+    await G.wait(G.snd.has('shuffle') ? 900 : 200);
     for (let r = 0; r < 7; r++) {
       for (let i = 0; i < players.length; i++) {
         hands[i].push(deck.pop());
         render();
-        G.snd.hit(3000, 0.04, 0.25);
-        await G.wait(45);
+        G.snd.deal();
+        await G.wait(70);
       }
     }
     await G.wait(300);
@@ -343,7 +345,7 @@
     render();
     const p = players[turn];
     G.status(G.mine(p) ? `${p.name}, your turn – match ${CNAME[color]} or ${label(top().v)}` : `${p.name}'s turn…`);
-    if (G.mine(p) && !G.fast) G.snd.tone(880, 0.1, 'sine', 0.15);
+    if (G.mine(p) && !G.fast) G.snd.turn();
     if (G.botTurn(p)) setTimeout(botMove, G.fast ? 0 : 900 + Math.random() * 600);
   }
 
@@ -375,7 +377,7 @@
       if (deck.includes(id) && !drew) G.act({ t: 'draw', n: step });
       return;
     }
-    if (!canPlay(id)) { G.snd.tone(200, 0.12, 'square', 0.1); G.toast('Match ' + CNAME[color] + ' or ' + label(top().v)); return; }
+    if (!canPlay(id)) { G.snd.error(); G.haptic('light'); G.toast('Match ' + CNAME[color] + ' or ' + label(top().v)); return; }
     const c = DECK[id];
     if (c.c === 4) {
       el.pick.classList.add('show');
@@ -396,8 +398,7 @@
     pile.push(a.id);
     const c = DECK[a.id];
     color = c.c === 4 ? a.c : c.c;
-    G.snd.hit(2400, 0.08, 0.6, 0, 1.2);
-    G.snd.tone(520, 0.1, 'triangle', 0.2, 0, 300);
+    G.snd.card();
     G.haptic('light');
     render();
     await G.wait(450);
@@ -411,32 +412,35 @@
       return;
     }
     if (h.length === 1) {
-      if (a.uno) { G.toast('🔔 ' + who.name + ': UNO!'); G.snd.tone(988, 0.25, 'sine', 0.3); G.snd.tone(1319, 0.45, 'sine', 0.25, 0.12); }
+      if (a.uno) { G.toast('🔔 ' + who.name + ': UNO!'); G.snd.uno(); }
       else {
         G.toast('😅 ' + who.name + ' forgot UNO! +2');
-        G.snd.tone(300, 0.3, 'sawtooth', 0.15, 0, 150);
+        G.snd.lose();
         await G.wait(500);
         h.push(draw1(), draw1());
+        G.snd.cardDraw();
+        G.snd.cardDraw(0.15);
         render();
         await G.wait(400);
       }
     }
     let skip = false;
-    if (c.v === 10) { skip = true; G.toast('⊘ Skip!'); G.snd.tone(700, 0.25, 'triangle', 0.25, 0, 250); }
+    if (c.v === 10) { skip = true; G.toast('⊘ Skip!'); G.snd.play('whoosh', { vol: 0.5 }); G.snd.say('v_skip') || G.snd.tone(700, 0.25, 'triangle', 0.25, 0, 250); }
     else if (c.v === 11) {
       if (players.length === 2) skip = true;
       else dir = -dir;
       G.toast('⇄ Reverse!');
-      G.snd.tone(400, 0.2, 'triangle', 0.2, 0, 800);
+      G.snd.play('whoosh', { vol: 0.6, rate: 0.8 }); G.snd.say('v_reverse') || G.snd.tone(400, 0.2, 'triangle', 0.2, 0, 800);
     } else if (c.v === 12 || c.v === 14) {
       const victim = (turn + dir + players.length) % players.length;
       const k = c.v === 12 ? 2 : 4;
       G.toast(`${players[victim].name} draws ${k}! 😈`);
-      [392, 523, 659, 784].slice(0, k).forEach((f, i) => G.snd.tone(f, 0.15, 'triangle', 0.2, i * 0.07));
-      for (let j = 0; j < k; j++) { hands[victim].push(draw1()); render(); await G.wait(140); }
+      G.snd.say(k === 2 ? 'v_draw2' : 'v_draw4') || [392, 523, 659, 784].slice(0, k).forEach((f, i) => G.snd.tone(f, 0.15, 'triangle', 0.2, i * 0.07));
+      await G.wait(G.fast ? 0 : 500);
+      for (let j = 0; j < k; j++) { hands[victim].push(draw1()); G.snd.cardDraw(); render(); await G.wait(170); }
       skip = true;
     }
-    if (c.c === 4) G.toast('🎨 ' + CNAME[color] + '!');
+    if (c.c === 4) { G.toast('🎨 ' + CNAME[color] + '!'); if (c.v !== 14) G.snd.say('v_wild'); if (!G.fast) setTimeout(() => G.snd.say(['v_red', 'v_yellow', 'v_green', 'v_blue'][color]), c.v === 14 ? 900 : 700); }
     await G.wait(250);
     nextTurn(skip);
   }
@@ -454,7 +458,7 @@
     const id = draw1();
     hands[turn].push(id);
     drew = true;
-    G.snd.hit(1800, 0.12, 0.4, 0, 1);
+    G.snd.cardDraw();
     render();
     await G.wait(450);
     busy = false;

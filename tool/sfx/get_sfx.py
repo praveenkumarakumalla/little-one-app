@@ -30,11 +30,11 @@ SPECS = {
     "zip_down":    (["slide whistle down", "falling whistle", "cartoon fall"], 1, 1.1, False, r"loop|music|bomb"),
     "hiss":        (["snake hiss", "hiss snake", "hissing"], 2, 1.0, True, r"steam|tire|cat|gas"),
     "sheep":       (["sheep baa", "sheep bleat", "lamb bleat", "sheep"], 6, 1.3, True, r"crowd|farm ambience|herd|loop|music"),
-    "bump":        (["body thud", "soft thud", "punch soft", "pillow hit"], 3, 0.4, True, r"music|loop|door"),
-    "bell":        (["bell ding", "service bell", "desk bell"], 1, 1.4, False, r"church|loop|music"),
+    "bump":        (["body thud", "soft thud", "punch soft", "pillow hit"], 3, 0.4, True, r"music|loop|door|neck|break|dirt"),
+    "bell":        (["service bell ding", "desk bell", "reception bell"], 1, 1.4, False, r"church|loop|music|voice|elephant|door"),
     "chime":       (["success chime", "magic chime", "positive notification"], 2, 1.4, False, r"loop|music"),
     "coin":        (["coin collect", "coin pickup", "coin drop"], 1, 0.8, True, r"loop|music|pile"),
-    "cheer":       (["kids cheering", "small crowd cheer", "crowd cheer applause"], 1, 3.0, False, r"stadium|loop"),
+    "cheer":       (["kids cheering", "small crowd cheer", "crowd cheer applause"], 1, 3.0, False, r"stadium|loop|firework"),
     "applause":    (["applause short", "clapping small group"], 1, 3.0, False, r"stadium|loop"),
     "fanfare":     (["fanfare win", "victory fanfare", "trumpet fanfare short"], 1, 3.0, False, r"loop"),
     "fail":        (["sad trombone", "fail trombone", "wah wah"], 1, 2.2, False, r"loop"),
@@ -188,7 +188,7 @@ def collect(name, spec, tmp, credits):
                 print(f"  skip (too long {total:.0f}s) {inf['title']}")
                 continue
             if split:
-                spans = [s for s in events(raw, tmp, sid) if s[1] - s[0] >= 0.03]
+                spans = [s for s in events(raw, tmp, sid) if s[1] - s[0] >= (0.03 if maxdur <= 0.25 else 0.12)]
                 spans = spans or [(0.0, total)]
                 take = spans[: max(1, min(3, n - len(clips)))]  # at most 3 hits from one recording
             else:

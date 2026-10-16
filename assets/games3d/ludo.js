@@ -320,12 +320,12 @@
     m.position.y = tokenSpot(turn, k).y;
     if (tok[turn][k] === -1) {
       tok[turn][k] = 0;
-      G.snd.hop();
+      G.snd.play('hop', { vol: 0.6 }) || G.snd.hop();
       await G.hopTo(m, tokenSpot(turn, k), 420, 1.2);
     } else {
       for (let i = 0; i < dice; i++) {
         tok[turn][k]++;
-        G.snd.hop();
+        G.snd.hop(i);
         await G.hopTo(m, tokenSpot(turn, k), 210, 0.55);
       }
     }

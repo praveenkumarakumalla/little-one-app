@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../store.dart';
 
@@ -28,6 +29,9 @@ class _Game3DPageState extends State<Game3DPage> {
       ..addJavaScriptChannel('Flutter', onMessageReceived: (m) => _msg(m.message))
       ..setNavigationDelegate(NavigationDelegate(onPageFinished: (_) => _start()))
       ..loadFlutterAsset('assets/games3d/index.html');
+    // game sounds may start without waiting for a tap
+    final p = w.platform;
+    if (p is AndroidWebViewController) p.setMediaPlaybackRequiresUserGesture(false);
   }
 
   Future<void> _start() async {
