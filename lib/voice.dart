@@ -12,12 +12,14 @@ class Voice {
   final AudioPlayer fx = AudioPlayer();
   final AudioPlayer clipPlayer = AudioPlayer();
   final Set<String> clips = {};
+  final Set<String> leda = {}, fallback = {};
   String? _lang;
   bool speaking = false;
   String nowPlaying = '';
 
   /// Recorded baby-voice clips (assets/voice/<key>.m4a) — natural voice, used instead of the robot voice.
   bool hasClip(String key) => clips.contains(key);
+  String assetPath(String key) => leda.contains(key) || !fallback.contains(key) ? 'assets/voice/$key.m4a' : 'assets/voice_fb/$key.m4a';
 
   Future<bool> clip(String key, {double volume = 1.0}) async {
     if (!clips.contains(key)) return false;
@@ -25,7 +27,7 @@ class Voice {
       speaking = true;
       await clipPlayer.stop();
       await clipPlayer.setVolume(volume);
-      await clipPlayer.play(AssetSource('voice/$key.m4a'));
+      await clipPlayer.play(AssetSource(fallback.contains(key) && !leda.contains(key) ? 'voice_fb/$key.m4a' : 'voice/$key.m4a'));
       await clipPlayer.onPlayerComplete.first.timeout(const Duration(seconds: 20));
     } catch (_) {}
     speaking = false;
@@ -47,7 +49,15 @@ class Voice {
     try {
       final m = await AssetManifest.loadFromAssetBundle(rootBundle);
       for (final a in m.listAssets()) {
-        if (a.startsWith('assets/voice/') && a.endsWith('.m4a')) clips.add(a.substring(13, a.length - 4));
+        if (a.startsWith('assets/voice/') && a.endsWith('.m4a')) {
+          clips.add(a.substring(13, a.length - 4));
+          leda.add(a.substring(13, a.length - 4));
+        }
+        // fill-in clips (Edge voice) for lines the Gemini voice hasn't made yet
+        if (a.startsWith('assets/voice_fb/') && a.endsWith('.m4a')) {
+          clips.add(a.substring(16, a.length - 4));
+          fallback.add(a.substring(16, a.length - 4));
+        }
       }
     } catch (_) {}
     for (final l in ['te-IN', 'hi-IN', 'en-IN']) {

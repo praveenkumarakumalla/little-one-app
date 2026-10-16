@@ -35,7 +35,7 @@ class FeedAlarm {
     final settings = AlarmSettings(
       id: id,
       dateTime: at,
-      assetAudioPath: Voice.i.hasClip('milk') ? 'assets/voice/milk.m4a' : 'assets/audio/alarm.wav',
+      assetAudioPath: Voice.i.hasClip('milk') ? Voice.i.assetPath('milk') : 'assets/audio/alarm.wav',
       loopAudio: true,
       vibrate: true,
       warningNotificationOnKill: Platform.isIOS,

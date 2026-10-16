@@ -114,7 +114,7 @@ class Talk {
           final p = await _path(s.value);
           final file = File(p);
           final audio = Voice.i.hasClip(s.value)
-              ? 'assets/voice/${s.value}.m4a'
+              ? Voice.i.assetPath(s.value)
               : file.existsSync() && file.lengthSync() > 2000
                   ? p
                   : 'assets/audio/music_box.wav';

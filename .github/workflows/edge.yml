@@ -1,0 +1,31 @@
+name: Fill-in baby voices (Edge)
+
+on:
+  workflow_dispatch:
+    inputs:
+      voice:
+        description: "te-IN-ShrutiNeural or te-IN-MohanNeural"
+        default: te-IN-ShrutiNeural
+
+permissions:
+  contents: write
+
+jobs:
+  voices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make fill-in voices
+        run: |
+          sudo apt-get install -y ffmpeg > /dev/null
+          pip install edge-tts > /dev/null
+          python3 tool/voices/edge_voices.py "${{ inputs.voice }}"
+      - name: Save to the repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A assets/voice_fb
+          git commit -m "Fill-in baby voices (Edge ${{ inputs.voice }})" || exit 0
+          git pull --rebase
+          git push

@@ -58,4 +58,5 @@ flutter:
     - assets/audio/alarm.wav
     - assets/farts/
     - assets/voice/
+    - assets/voice_fb/
     - assets/games3d/
