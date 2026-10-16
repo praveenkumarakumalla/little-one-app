@@ -1,0 +1,226 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #1b1024; color: #fff; font-family: system-ui, Roboto, sans-serif; overflow: hidden; }
+  #grid { position: fixed; inset: 0; display: grid; gap: 4px; padding: 4px; }
+  .tile { position: relative; background: #2d1d3a; border-radius: 18px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .tile video { width: 100%; height: 100%; object-fit: cover; }
+  .tile .nm { position: absolute; left: 10px; top: 70px; font-weight: 800; font-size: 14px; background: rgba(0,0,0,.4); padding: 3px 10px; border-radius: 10px; }
+  .tile .av { font-size: 72px; display: none; }
+  .tile.novid video { display: none; } .tile.novid .av { display: block; }
+  #me { position: fixed; right: 12px; top: 64px; width: 110px; height: 160px; border-radius: 16px; overflow: hidden; z-index: 3; box-shadow: 0 6px 18px rgba(0,0,0,.5); border: 2px solid rgba(255,255,255,.6); background: #000; }
+  #me video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  #me.off { display: none; }
+  #top { position: fixed; left: 0; right: 0; top: 0; padding: 14px 16px; z-index: 4; text-align: center; background: linear-gradient(rgba(0,0,0,.55), transparent); }
+  #title { font-size: 20px; font-weight: 900; }
+  #status { font-size: 14px; opacity: .85; margin-top: 2px; }
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 18px 10px 28px; display: flex; justify-content: center; gap: 14px; z-index: 4; background: linear-gradient(transparent, rgba(0,0,0,.6)); }
+  .b { width: 62px; height: 62px; border-radius: 50%; border: none; font-size: 26px; background: rgba(255,255,255,.18); color: #fff; backdrop-filter: blur(6px); }
+  .b.on { background: #fff; color: #1b1024; }
+  .b.end { background: #e53950; width: 72px; height: 72px; font-size: 30px; }
+  #wait { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; z-index: 2; }
+  #wait .big { font-size: 90px; animation: pulse 1.6s infinite; }
+  @keyframes pulse { 50% { transform: scale(1.08); } }
+</style>
+</head>
+<body>
+<div id="grid"></div>
+<div id="wait"><div class="big" id="waitIcon">📞</div><div id="waitText" style="font-size:18px;font-weight:800">Calling…</div></div>
+<div id="me"><video id="meV" autoplay playsinline muted></video></div>
+<div id="top"><div id="title">Family call</div><div id="status">Connecting…</div></div>
+<div id="bar">
+  <button class="b" id="mute">🎙️</button>
+  <button class="b" id="cam">📷</button>
+  <button class="b" id="flip">🔄</button>
+  <button class="b" id="spk">🔊</button>
+  <button class="b end" id="end">📞</button>
+</div>
+<script src="peerjs.min.js"></script>
+<script>
+'use strict';
+const post = (m) => { try { window.Flutter && Flutter.postMessage(m); } catch (e) {} };
+const $ = (id) => document.getElementById(id);
+const ICE = { iceServers: [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+] };
+let cfg, peer, local, video = true, facing = 'user', muted = false, camOff = false;
+const calls = new Map(); // peerId -> {call, tile, name}
+const names = new Map();
+let joinedAny = false, ringT = null, ringTimeout = null;
+
+function layout() {
+  const n = calls.size;
+  const g = $('grid');
+  g.style.gridTemplateColumns = n <= 1 ? '1fr' : '1fr 1fr';
+  g.style.gridTemplateRows = n <= 2 ? `repeat(${Math.max(1, n)}, 1fr)` : '1fr 1fr';
+  $('wait').style.display = n ? 'none' : 'flex';
+  $('status').textContent = n ? (n === 1 ? 'Connected' : n + ' people') + (video ? '' : ' · voice call') : (cfg.role === 'host' ? 'Ringing…' : 'Connecting…');
+}
+
+function tileFor(id) {
+  let c = calls.get(id);
+  if (!c) { c = {}; calls.set(id, c); }
+  if (!c.tile) {
+    const t = document.createElement('div');
+    t.className = 'tile' + (video ? '' : ' novid');
+    t.innerHTML = '<video autoplay playsinline></video><div class="av">👤</div><div class="nm"></div>';
+    $('grid').appendChild(t);
+    c.tile = t;
+  }
+  c.tile.querySelector('.nm').textContent = names.get(id) || 'Family';
+  return c;
+}
+
+function attach(call, id) {
+  const c = tileFor(id);
+  c.call = call;
+  call.on('stream', (s) => {
+    const v = c.tile.querySelector('video');
+    v.srcObject = s;
+    v.play().catch(() => {});
+    if (!s.getVideoTracks().length) c.tile.classList.add('novid');
+    if (!joinedAny) { joinedAny = true; post('connected'); clearTimeout(ringTimeout); }
+    layout();
+  });
+  call.on('close', () => drop(id));
+  call.on('error', () => drop(id));
+  layout();
+}
+
+function drop(id) {
+  const c = calls.get(id);
+  if (!c) return;
+  if (c.tile) c.tile.remove();
+  calls.delete(id);
+  layout();
+  if (joinedAny && calls.size === 0) end('Call ended');
+}
+
+function end(why) {
+  try { for (const c of calls.values()) c.call && c.call.close(); } catch (e) {}
+  try { local && local.getTracks().forEach((t) => t.stop()); } catch (e) {}
+  try { peer && peer.destroy(); } catch (e) {}
+  post('end:' + (why || ''));
+}
+
+async function getMedia() {
+  const want = { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: video ? { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } } : false };
+  return navigator.mediaDevices.getUserMedia(want);
+}
+
+window.startCall = async function (c) {
+  cfg = typeof c === 'string' ? JSON.parse(c) : c;
+  video = !!cfg.video;
+  initSpk();
+  $('title').textContent = (video ? '📹 ' : '📞 ') + (cfg.title || 'Family call');
+  $('waitIcon').textContent = video ? '📹' : '📞';
+  $('waitText').textContent = cfg.role === 'host' ? 'Calling ' + (cfg.callee || 'family') + '…' : 'Joining…';
+  if (!video) { $('me').classList.add('off'); $('cam').style.display = 'none'; $('flip').style.display = 'none'; }
+  try {
+    local = await getMedia();
+  } catch (e) {
+    $('status').textContent = 'Allow camera & microphone: ' + e.name;
+    post('error:media ' + e.name);
+    return;
+  }
+  $('meV').srcObject = local;
+  const hostId = 'littleone-call-' + cfg.room + '-host';
+  const opts = { debug: 0, config: ICE };
+  peer = cfg.role === 'host' ? new Peer(hostId, opts) : new Peer(undefined, opts);
+  peer.on('open', (id) => {
+    if (cfg.role !== 'host') {
+      // ask the host who is in the call, then call everyone
+      const d = peer.connect(hostId, { reliable: true, metadata: { name: cfg.name } });
+      d.on('open', () => d.send({ t: 'hi', name: cfg.name }));
+      d.on('data', (m) => {
+        if (m.t === 'list') {
+          for (const p of m.peers) {
+            names.set(p.id, p.name);
+            if (p.id !== id && !calls.has(p.id)) attach(peer.call(p.id, local, { metadata: { name: cfg.name } }), p.id);
+          }
+        }
+      });
+      let tries = 0;
+      peer.on('error', (e) => {
+        if (e.type === 'peer-unavailable' && tries++ < 10) setTimeout(() => window.startCall && retryJoin(), 2000);
+      });
+    }
+  });
+  if (cfg.role === 'host') {
+    const roster = [{ id: hostId, name: cfg.name }];
+    peer.on('connection', (d) => {
+      d.on('data', (m) => {
+        if (m.t === 'hi') {
+          names.set(d.peer, m.name);
+          d.send({ t: 'list', peers: roster.slice() });
+          roster.push({ id: d.peer, name: m.name });
+        }
+      });
+    });
+    // nobody answers in 45 s → give up
+    ringTimeout = setTimeout(() => { if (!joinedAny) end('No answer'); }, 45000);
+  }
+  peer.on('call', (call) => {
+    names.set(call.peer, (call.metadata && call.metadata.name) || names.get(call.peer) || 'Family');
+    call.answer(local);
+    attach(call, call.peer);
+  });
+  peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
+  peer.on('error', (e) => {
+    if (e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error') $('status').textContent = '📶 Check internet…';
+    if (e.type === 'unavailable-id') $('status').textContent = 'Call already open on another phone';
+  });
+  layout();
+};
+
+function retryJoin() {
+  const hostId = 'littleone-call-' + cfg.room + '-host';
+  const d = peer.connect(hostId, { reliable: true });
+  d.on('open', () => d.send({ t: 'hi', name: cfg.name }));
+  d.on('data', (m) => {
+    if (m.t === 'list') for (const p of m.peers) { names.set(p.id, p.name); if (p.id !== peer.id && !calls.has(p.id)) attach(peer.call(p.id, local, { metadata: { name: cfg.name } }), p.id); }
+  });
+}
+
+$('mute').onclick = () => {
+  muted = !muted;
+  local && local.getAudioTracks().forEach((t) => (t.enabled = !muted));
+  $('mute').textContent = muted ? '🔇' : '🎙️';
+  $('mute').classList.toggle('on', muted);
+};
+$('cam').onclick = () => {
+  camOff = !camOff;
+  local && local.getVideoTracks().forEach((t) => (t.enabled = !camOff));
+  $('cam').classList.toggle('on', camOff);
+  $('me').classList.toggle('off', camOff);
+};
+$('flip').onclick = async () => {
+  if (!video) return;
+  facing = facing === 'user' ? 'environment' : 'user';
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } });
+    const nt = s.getVideoTracks()[0];
+    for (const c of calls.values()) {
+      const sender = c.call && c.call.peerConnection && c.call.peerConnection.getSenders().find((x) => x.track && x.track.kind === 'video');
+      if (sender) sender.replaceTrack(nt);
+    }
+    local.getVideoTracks().forEach((t) => { local.removeTrack(t); t.stop(); });
+    local.addTrack(nt);
+    $('meV').srcObject = local;
+    $('meV').style.transform = facing === 'user' ? 'scaleX(-1)' : 'none';
+  } catch (e) {}
+};
+let spk = true;
+function initSpk() { spk = video; $('spk').textContent = spk ? '🔊' : '🔈'; $('spk').classList.toggle('on', !spk); }
+$('spk').onclick = () => { spk = !spk; post('speaker:' + (spk ? 1 : 0)); $('spk').textContent = spk ? '🔊' : '🔈'; $('spk').classList.toggle('on', !spk); };
+$('end').onclick = () => end('You ended the call');
+</script>
+</body>
+</html>

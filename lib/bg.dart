@@ -31,4 +31,11 @@ class Bg {
       await _ch.invokeMethod('battery');
     } catch (_) {}
   }
+
+  /// Calls: loudspeaker on/off (active=false puts the phone back to normal sound).
+  static Future<void> speaker(bool on, {bool active = true}) async {
+    try {
+      await _ch.invokeMethod('speaker', {'on': on, 'active': active});
+    } catch (_) {}
+  }
 }

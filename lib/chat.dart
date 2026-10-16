@@ -16,6 +16,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
 import 'baby_say.dart';
+import 'call.dart';
 import 'chat_bg.dart';
 import 'clay.dart';
 
@@ -541,6 +542,8 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
           if (m['fname'] != null) 'fname': m['fname'],
           if (m['size'] != null) 'size': m['size'],
           if (m['clip'] != null) 'clip': m['clip'],
+          if (m['room'] != null) 'room': m['room'],
+          if (m['video'] != null) 'video': m['video'],
           if (att != null) 'url': att['url'],
         };
         if (idx < 0) {
@@ -551,6 +554,10 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
           final at = (m['at'] as num?)?.toInt() ?? 0;
           if (entry['kind'] == 'say' && from != me && DateTime.now().millisecondsSinceEpoch - at < 10 * 60 * 1000) {
             unawaited(BabySay.play(entry['text'].toString(), entry['clip']?.toString(), background: !appVisible));
+          }
+          // a family member is calling – ring
+          if (entry['kind'] == 'call' && from != me && DateTime.now().millisecondsSinceEpoch - at < 45 * 1000) {
+            unawaited(Calls.incoming(entry, visible: appVisible, context: Calls.nav?.currentContext));
           }
           if (pageOpen && appVisible) {
             await markRead();
@@ -612,7 +619,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     final l = msgs.where((x) => x['from'] != 'sys').toList();
     if (l.isEmpty) return;
     final hist = l.length > 3000 ? l.sublist(l.length - 3000) : l;
-    final slim = hist.map((x) => {for (final k in ['id', 'from', 'name', 'at', 'kind', 'text', 'fname', 'size', 'reacts', 'clip']) if (x[k] != null) k: x[k]}).toList();
+    final slim = hist.map((x) => {for (final k in ['id', 'from', 'name', 'at', 'kind', 'text', 'fname', 'size', 'reacts', 'clip', 'room', 'video']) if (x[k] != null) k: x[k]}).toList();
     final mem = members..[me] = {'name': myName, 'seen': DateTime.now().millisecondsSinceEpoch, 'joined': cfg['joinedAt'] ?? 0};
     await _publishFile({'t': 'hist', 'for': forDev, 'name': myName}, utf8.encode(jsonEncode({'msgs': slim, 'members': mem})));
   }
@@ -737,7 +744,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
       final due = x['sent'] != true || (!deliveredAll(x) && now - pub > (isFile ? 150 : 480) * 60000);
       if (!due) continue;
       budget--;
-      final meta = {for (final k in ['id', 'name', 'text', 'at', 'kind', 'fname', 'size', 'clip']) if (x[k] != null) k: x[k]};
+      final meta = {for (final k in ['id', 'name', 'text', 'at', 'kind', 'fname', 'size', 'clip', 'room', 'video']) if (x[k] != null) k: x[k]};
       bool ok;
       if (isFile) {
         final f = File(x['path'].toString());
@@ -918,7 +925,11 @@ class _ChatPageState extends State<ChatPage> {
           const Text('మన కుటుంబం · Family chat'),
           Text(c.isOnline ? '🔒 $n member${n == 1 ? '' : 's'} · end-to-end encrypted${c.online ? '' : ' · backup relay'}' : '⚠️ Connecting${c.lastErr != null ? ' (${c.lastErr})' : '…'} – messages send by themselves', style: TextStyle(fontSize: 12, color: c.isOnline ? cs.outline : cs.error)),
         ]),
-        actions: [IconButton(tooltip: 'Members & settings', onPressed: () => _settings(context), icon: const Icon(Icons.group))],
+        actions: [
+          if (c.paired) IconButton(tooltip: 'Voice call', onPressed: () => Calls.start(context, video: false), icon: const Icon(Icons.call)),
+          if (c.paired) IconButton(tooltip: 'Video call', onPressed: () => Calls.start(context, video: true), icon: const Icon(Icons.videocam)),
+          IconButton(tooltip: 'Members & settings', onPressed: () => _settings(context), icon: const Icon(Icons.group)),
+        ],
       ),
       body: Column(children: [
         Expanded(
@@ -1136,7 +1147,20 @@ class _ChatPageState extends State<ChatPage> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (!mine) Padding(padding: EdgeInsets.only(left: isMedia ? 6 : 0, bottom: 2), child: Text(m['name'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: cs.primary))),
               if (isMedia) _media(context, m),
-              if (m['kind'] == 'say')
+              if (m['kind'] == 'call')
+                InkWell(
+                  onTap: () => Calls.join(context, m),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text(m['video'] == true ? '📹 ' : '📞 ', style: const TextStyle(fontSize: 22)),
+                    Flexible(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(m['video'] == true ? 'Video call' : 'Voice call', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                        Text('Tap to join', style: TextStyle(fontSize: 12, color: cs.primary)),
+                      ]),
+                    ),
+                  ]),
+                )
+              else if (m['kind'] == 'say')
                 InkWell(
                   onTap: () => BabySay.play(m['text'].toString(), m['clip']?.toString()),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [

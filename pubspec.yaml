@@ -63,4 +63,5 @@ flutter:
     - assets/voice/
     - assets/voice_fb/
     - assets/ml/
+    - assets/call/
     - assets/games3d/

@@ -1,6 +1,8 @@
 package __PKG__
 
+import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
@@ -37,6 +39,16 @@ class MainActivity : FlutterActivity() {
                         } else {
                             startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
                         }
+                        result.success(true)
+                    }
+                    "speaker" -> {
+                        // calls: loudspeaker on/off and "in call" audio mode
+                        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                        val on = call.argument<Boolean>("on") ?: true
+                        val active = call.argument<Boolean>("active") ?: true
+                        am.mode = if (active) AudioManager.MODE_IN_COMMUNICATION else AudioManager.MODE_NORMAL
+                        @Suppress("DEPRECATION")
+                        am.isSpeakerphoneOn = active && on
                         result.success(true)
                     }
                     else -> result.notImplemented()

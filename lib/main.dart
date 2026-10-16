@@ -5,6 +5,7 @@ import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'call.dart';
 import 'chat.dart';
 import 'feed_alarm.dart';
 import 'games/games_page.dart';
@@ -109,9 +110,14 @@ class _ShellState extends State<Shell> {
   @override
   void initState() {
     super.initState();
+    Calls.nav = navKey;
     _ringSub = Alarm.ringing.listen((set) {
       final ids = set.alarms.map((a) => a.id).toList();
       if (ids.contains(FeedAlarm.id)) _showFeedAlarm();
+      if (ids.any(Calls.isRing)) {
+        final ctx = navKey.currentContext;
+        if (ctx != null) Calls.showIncoming(ctx);
+      }
       for (final id in ids.where(Talk.isTalk)) {
         if (_talkShown.add(id)) {
           final ctx = navKey.currentContext;
