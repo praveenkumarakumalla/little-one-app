@@ -90,6 +90,44 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     return msgs.where((m) => m['from'] != me && m['from'] != 'sys' && (m['at'] as num) > seen).length;
   }
 
+  // ───────────────────────── shared family records (notes, calendar, growth) ─────────────────────────
+  static const syncKeys = ['notes', 'events', 'growth'];
+
+  Set<String> _tombs(String k) => ((Store.i.d['tomb_$k'] as List?) ?? []).map((e) => e.toString()).toSet();
+  void _tomb(String k, String id) {
+    final t = _tombs(k)..add(id);
+    final l = t.toList();
+    Store.i.d['tomb_$k'] = l.length > 500 ? l.sublist(l.length - 500) : l;
+  }
+
+  /// Add a record that came from another family phone (ignored if we already have it or deleted it).
+  Future<bool> _gotRecord(String k, Map item) async {
+    if (!syncKeys.contains(k)) return false;
+    final id = (item['id'] ?? '').toString();
+    if (id.isEmpty || _tombs(k).contains(id)) return false;
+    if (Store.i.list(k).any((e) => e['id'].toString() == id)) return false;
+    final l = (Store.i.d[k] as List? ?? []).toList()..add({...Map<String, dynamic>.from(item), 'remote': true});
+    Store.i.d[k] = l;
+    return true;
+  }
+
+  /// Every phone shares its full lists now and then, so a phone that was off still catches up.
+  Future<void> _shareRecords({bool force = false}) async {
+    if (!paired) return;
+    final last = (cfg['recShared'] as num?)?.toInt() ?? 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (!force && now - last < 6 * 3600 * 1000) return;
+    final bundle = <String, dynamic>{};
+    for (final k in syncKeys) {
+      final items = Store.i.list(k);
+      bundle[k] = items.length > 300 ? items.sublist(items.length - 300) : items;
+      bundle['tomb_$k'] = _tombs(k).toList();
+    }
+    if (await _publish({'t': 'recs', 'b': bundle, 'name': myName})) {
+      await _saveCfg(cfg..['recShared'] = now);
+    }
+  }
+
   // ───────────────────────── lifecycle ─────────────────────────
   Future<void> init() async {
     Store.i.d.putIfAbsent('chat', () => <dynamic>[]);
@@ -102,9 +140,14 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     _resendTimer = Timer.periodic(const Duration(minutes: 2), (_) => _resend());
     Store.onAdd = (k, item) {
       if (k == 'memories' && item['remote'] != true) unawaited(shareMemory(item));
+      if (syncKeys.contains(k) && item['remote'] != true && paired) unawaited(_publish({'t': 'rec', 'k': k, 'item': {...item, 'by': myName}, 'name': myName}));
     };
     Store.onRemove = (k, id) {
       if (k == 'memories' && paired) unawaited(_publish({'t': 'memdel', 'ref': id, 'name': myName}));
+      if (syncKeys.contains(k)) {
+        _tomb(k, id);
+        if (paired) unawaited(_publish({'t': 'recdel', 'k': k, 'ref': id, 'name': myName}));
+      }
     };
   }
 
@@ -480,6 +523,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
 
     switch (type) {
       case 'join':
+        unawaited(_shareRecords(force: true));
         if (!known) await _addSys('👋 ${m['name']} joined the family chat');
         _histDone.remove(from);
         Timer(Duration(seconds: 3 + math.Random().nextInt(18)), () => _sendHistory(from));
@@ -491,6 +535,37 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
         break;
       case 'memdel':
         await _memDeleted(m['ref'].toString());
+        break;
+      case 'rec':
+        if (await _gotRecord(m['k'].toString(), Map.from(m['item'] as Map))) await Store.i.save();
+        break;
+      case 'recdel':
+        {
+          final k = m['k'].toString(), id = m['ref'].toString();
+          if (syncKeys.contains(k)) {
+            _tomb(k, id);
+            Store.i.d[k] = (Store.i.d[k] as List? ?? []).where((e) => (e as Map)['id'].toString() != id).toList();
+            await Store.i.save();
+          }
+        }
+        break;
+      case 'recs':
+        {
+          final b = Map<String, dynamic>.from(m['b'] as Map);
+          var changed = false;
+          for (final k in syncKeys) {
+            for (final id in ((b['tomb_$k'] as List?) ?? [])) {
+              _tomb(k, id.toString());
+              final before = (Store.i.d[k] as List? ?? []).length;
+              Store.i.d[k] = (Store.i.d[k] as List? ?? []).where((e) => (e as Map)['id'].toString() != id.toString()).toList();
+              if ((Store.i.d[k] as List).length != before) changed = true;
+            }
+            for (final it in ((b[k] as List?) ?? [])) {
+              if (await _gotRecord(k, Map.from(it as Map))) changed = true;
+            }
+          }
+          if (changed) await Store.i.save();
+        }
         break;
       case 'ack':
         final ref = (m['ref'] as List).map((e) => e.toString()).toSet();
@@ -733,6 +808,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
   /// Re-send what members haven't confirmed (the relay forgets text after ~12 h, files after ~3 h).
   Future<void> _resend() async {
     if (!paired || !isOnline) return;
+    unawaited(_shareRecords());
     final now = DateTime.now().millisecondsSinceEpoch;
     var budget = 8;
     for (final x in msgs) {

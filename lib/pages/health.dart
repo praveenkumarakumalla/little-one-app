@@ -205,7 +205,7 @@ class _NotesState extends State<_Notes> {
         return ClayCard(
           child: ListTile(
             title: Text(n['text'].toString()),
-            subtitle: Text('${dmy(at)} ${hm(at)} · ${n['tag']}'),
+            subtitle: Text('${dmy(at)} ${hm(at)} · ${n['tag']}${n['by'] != null ? ' · ✍️ ${n['by']}' : ''}'),
             trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => Store.i.removeItem('notes', n['id'].toString())),
           ),
         );
