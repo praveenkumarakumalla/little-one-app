@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
+import 'chat.dart';
 import 'cry_ml.dart';
 
 import 'clay.dart';
@@ -32,6 +33,7 @@ class CryEpisode {
   CrySound? sound;
   String? tried; // what the parents said they are doing
   bool warned = false;
+  bool alerted = false; // told the family phones
   int get mins => DateTime.now().difference(start).inMinutes;
 }
 
@@ -79,6 +81,11 @@ class SleepWatch extends ChangeNotifier {
       if (on) stop(remember: false);
     });
     await Store.i.setSetting('autoWatch', true);
+    // so Android doesn't stop the listening when the screen is locked
+    if (Store.i.settings['askedBattery'] != true) {
+      await Store.i.setSetting('askedBattery', true);
+      unawaited(Bg.askBattery());
+    }
     _log(bgOk ? 'Listening started (works with the screen off)' : 'Listening started (keep the app open)');
     notifyListeners();
     return null;
@@ -149,50 +156,68 @@ class SleepWatch extends ChangeNotifier {
   }
 
   int _n = 0;
+  final List<double> _quietDb = []; // recent levels of the room when nobody is crying
+  final List<double> _mlHist = []; // AI cry score, every half second
   void _analyze(List<double> f) {
     CryML.i.add(f);
-    if (++_n % 5 == 0) unawaited(CryML.i.run());
+    if (++_n % 5 == 0) {
+      unawaited(CryML.i.run().then((_) {
+        if (CryML.i.ready) {
+          _mlHist.add(CryML.i.cry);
+          if (_mlHist.length > 12) _mlHist.removeAt(0);
+        }
+      }));
+    }
     var rms = 0.0;
     for (final x in f) {
       rms += x * x;
     }
     rms = math.sqrt(rms / f.length);
     final db = 20 * math.log(rms + 1e-9) / math.ln10;
-    final sens = (Store.i.settings['sens'] as num?)?.toDouble() ?? 18;
+    final sens = ((Store.i.settings['sens'] as num?)?.toDouble() ?? 12).clamp(6, 14).toDouble();
     if (_base == null) {
       _calib.add(db);
       level = 0;
-      if (_calib.length >= 40) {
+      if (_calib.length >= 30) {
         final s = [..._calib]..sort();
-        _base = s[s.length ~/ 2];
+        _base = s[s.length ~/ 4];
         state = 'Listening… room is quiet';
       }
       notifyListeners();
       return;
     }
+    final ml = CryML.i;
+    final mlCry = ml.ready && ml.cry >= 0.12;
+    // room level = a low percentile of the last ~20 s when nobody cries (doesn't creep up while she cries)
+    if (!mlCry && ep == null) {
+      _quietDb.add(db);
+      if (_quietDb.length > 200) _quietDb.removeAt(0);
+      if (_quietDb.length >= 20 && _n % 10 == 0) {
+        final q = [..._quietDb]..sort();
+        _base = q[(q.length * 0.2).floor()];
+      }
+    }
     final base = _base!;
     level = ((db - base) / (sens * 1.8)).clamp(0.0, 1.0);
     final now = DateTime.now();
-    if (now.isBefore(_muteUntil) || Voice.i.speaking || Voice.i.musicOn) {
-      // the app itself is making sound — don't listen to ourselves, and don't count this time
+    if (now.isBefore(_muteUntil) || Voice.i.speaking) {
+      // the app itself is talking — don't listen to ourselves
       if (ep != null) ep!.lastCry = ep!.lastCry.add(const Duration(milliseconds: 100));
-      if (Voice.i.speaking) _muteUntil = now.add(const Duration(milliseconds: 1200));
-      state = 'Paused while the app speaks / plays';
+      state = 'Paused while the app speaks';
       notifyListeners();
       return;
     }
     final loud = db > base + sens;
-    if (!loud && ep == null) _base = base * 0.995 + db * 0.005;
-    final pc = loud ? pitchOf(f) : [0.0, 0.0];
-    final ml = CryML.i;
+    final pc = db > base + 4 ? pitchOf(f) : [0.0, 0.0];
     final bool cry;
     if (ml.ready) {
-      // the AI decides whether it is really a baby crying (not TV, talking, the cooker…)
-      cry = (ml.cry >= 0.22 && (loud || db > base + sens * 0.6)) || (ml.cry >= 0.5 && db > base + 4);
+      // the AI decides whether it is really a baby crying (not TV, talking, music, the cooker…)
+      cry = mlCry && db > base + 3;
     } else {
       cry = loud && pc[0] >= 300 && pc[0] <= 1000 && pc[1] > 0.5;
     }
-    hist.add(Fr(db - base, loud, pc[0], pc[1], cry));
+    // for the rhythm analysis a "loud" slice = a crying slice (the AI knows better than the level)
+    hist.add(Fr(db - base, ml.ready ? (cry || loud) : loud, pc[0], pc[1], cry));
     if (hist.length > 200) hist.removeAt(0);
 
     if (ep != null) {
@@ -202,21 +227,37 @@ class SleepWatch extends ChangeNotifier {
     state = cry
         ? 'Hearing a baby cry…${ml.ready ? ' (AI ${(ml.cry * 100).round()}%)' : ''}'
         : loud
-            ? (ml.ready && ml.speech > 0.4 ? 'Hearing people talk – not a cry' : 'Hearing loud sound – not a cry')
-            : 'Listening… room is quiet';
+            ? (ml.ready && ml.speech > 0.4 ? 'Hearing people talk – not a cry' : 'Hearing sound – not a cry')
+            : 'Listening… room is quiet${ml.ready ? ' · AI on' : ''}';
     notifyListeners();
-    if (hist.length < 30) return;
-    final last = hist.sublist(hist.length - 30);
-    final nLoud = last.where((x) => x.loud).length, nCry = last.where((x) => x.cry).length;
     final st = Store.i.settings;
-    if (nCry >= (ml.ready ? 10 : 13) && st['wCry'] != false && now.difference(_epEnded).inSeconds > 60) {
+    if (st['wCry'] == false || now.difference(_epEnded).inSeconds < 20) return;
+    // ~3 seconds of crying → start helping straight away
+    bool start;
+    if (ml.ready) {
+      final last6 = _mlHist.length > 6 ? _mlHist.sublist(_mlHist.length - 6) : _mlHist;
+      start = last6.where((x) => x >= 0.12).length >= 2 && last6.isNotEmpty && last6.last >= 0.12;
+    } else {
+      if (hist.length < 30) return;
+      final last = hist.sublist(hist.length - 30);
+      start = last.where((x) => x.cry).length >= 10;
+    }
+    if (start) {
       ep = CryEpisode();
-      state = 'She is crying — listening to her cry…';
-      _log('Heard her cry — listening to the rhythm');
+      state = 'She is crying — finding out why…';
+      _log('Heard her cry${ml.ready ? ' (AI ${(ml.cry * 100).round()}%)' : ''}');
       notifyListeners();
-    } else if (nLoud >= 22 && nCry < 8 && st['wShh'] != false && now.difference(_lastShh).inSeconds > 45) {
-      _lastShh = now;
-      _onLoud();
+      unawaited(_firstPrompt(sens));
+      return;
+    }
+    if (hist.length >= 30) {
+      final last = hist.sublist(hist.length - 30);
+      final nLoud = last.where((x) => x.loud).length;
+      final anyCry = ml.ready ? (_mlHist.isNotEmpty && _mlHist.reduce(math.max) > 0.06) : last.where((x) => x.cry).length >= 8;
+      if (nLoud >= 22 && !anyCry && st['wShh'] != false && now.difference(_lastShh).inSeconds > 45) {
+        _lastShh = now;
+        _onLoud();
+      }
     }
   }
 
@@ -225,17 +266,22 @@ class SleepWatch extends ChangeNotifier {
     if (cry) e.lastCry = now;
     final quiet = now.difference(e.lastCry).inSeconds;
     if (e.phase == 0) {
-      e.frames++;
-      state = 'She is crying — listening to her cry… ${(5 - e.frames / 10).clamp(0, 5).round()}s';
+      state = 'She is crying — finding out why…';
       notifyListeners();
-      if (e.frames >= 50) unawaited(_firstPrompt(sens));
       return;
     }
     state = quiet < 10 ? 'Crying · ${e.mins} min' : 'Quiet for $quiet s…';
     notifyListeners();
+    // after a minute of crying, tell the other family phones (spoken out loud there)
+    if (!e.alerted && quiet < 10 && now.difference(e.start).inSeconds >= 60 && Store.i.settings['alertFamily'] != false && Chat.i.paired) {
+      e.alerted = true;
+      final r = e.reasons.isNotEmpty ? e.reasons.first : null;
+      unawaited(Chat.i.send('${Store.i.babyName} ఏడుస్తోంది!${r != null ? ' ${r.te} కావొచ్చు.' : ''} ఎవరైనా చూడండి.', kind: 'say'));
+      _log('Told the family phones');
+    }
     if (quiet >= 45) {
       unawaited(_calm());
-    } else if (quiet < 15 && now.difference(e.lastPrompt).inMinutes >= 4) {
+    } else if (quiet < 15 && now.difference(e.lastPrompt).inSeconds >= 120) {
       unawaited(_followUp());
     } else if (e.mins >= 20 && !e.warned && quiet < 15) {
       e.warned = true;
@@ -262,7 +308,7 @@ class SleepWatch extends ChangeNotifier {
     if (e == null || e.phase != 0) return;
     e.phase = 1;
     e.lastPrompt = DateTime.now();
-    final win = hist.length > 90 ? hist.sublist(hist.length - 90) : List<Fr>.from(hist);
+    final win = hist.length > 60 ? hist.sublist(hist.length - 60) : List<Fr>.from(hist);
     e.sound = analyseCry(win, sens);
     e.reasons = cryReasons(sound: e.sound);
     final top = e.reasons.first;

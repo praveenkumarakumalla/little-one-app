@@ -88,6 +88,28 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           const SizedBox(height: 12),
           _enter(1, s.hasProfile ? _hero(context) : _setupCard(context)),
           const SizedBox(height: 16),
+          if (!SleepWatch.i.on)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: ClayButton(
+                color: const Color(0xFFFFD6D6),
+                color2: const Color(0xFFFFE9C7),
+                onTap: () async {
+                  final err = await SleepWatch.i.start();
+                  if (err != null && context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+                },
+                child: const Row(children: [
+                  Text('🎧', style: TextStyle(fontSize: 30)),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Cry listening is OFF', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Color(0xFF7A1F2B))),
+                      Text('Tap to turn on – the app hears her cry (even with the screen locked) and tells you why in Telugu.', style: TextStyle(fontSize: 12, color: Color(0xFF7A1F2B))),
+                    ]),
+                  ),
+                ]),
+              ),
+            ),
           const CryLiveCard(),
           if (s.openCry != null && SleepWatch.i.ep == null) _enter(2, _openCryCard(context)),
           _enter(2, _feedCard(context)),

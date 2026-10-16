@@ -132,7 +132,7 @@ class _ShellState extends State<Shell> {
         await _askPermissions();
       } catch (_) {}
       try {
-        if (Store.i.settings['autoWatch'] == true) await SleepWatch.i.start();
+        if (Store.i.settings['autoWatch'] != false) await SleepWatch.i.start(); // listening is on by default
       } catch (_) {}
       await Future.delayed(const Duration(seconds: 4));
       final ctx = navKey.currentContext;
