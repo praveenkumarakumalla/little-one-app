@@ -91,11 +91,16 @@ Future<void> chatBackgroundCheck() async {
     final bgSince = prefs.getInt('chatBgSince') ?? 0;
     var since = mainSince > bgSince ? mainSince : bgSince;
     if (since == 0) since = DateTime.now().millisecondsSinceEpoch ~/ 1000 - 6 * 3600;
-    final r = await http.get(Uri.parse('https://ntfy.sh/$topic/json?poll=1&since=$since')).timeout(const Duration(seconds: 25));
-    if (r.statusCode != 200) return;
     final aes = AesGcm.with256bits();
     var latest = since;
-    for (final line in const LineSplitter().convert(r.body)) {
+    final lines = <String>[];
+    for (final relay in const ['https://ntfy.sh', 'https://ntfy.envs.net']) {
+      try {
+        final r = await http.get(Uri.parse('$relay/$topic/json?poll=1&since=$since')).timeout(const Duration(seconds: 25));
+        if (r.statusCode == 200) lines.addAll(const LineSplitter().convert(r.body));
+      } catch (_) {}
+    }
+    for (final line in lines) {
       if (line.trim().isEmpty) continue;
       final ev = jsonDecode(line) as Map;
       if (ev['event'] != 'message') continue;

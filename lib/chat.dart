@@ -48,6 +48,8 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
   Chat._();
   static final Chat i = Chat._();
   static const relay = 'https://ntfy.sh';
+  /// Second free relay: used when ntfy.sh is busy / limits this network, so chat keeps working.
+  static const relay2 = 'https://ntfy.envs.net';
   static const maxMembers = 10;
   static const maxFile = 14 * 1024 * 1024;
 
@@ -65,6 +67,13 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
   bool pageOpen = false;
   bool appVisible = true;
   bool online = false;
+  bool online2 = false;
+  String? lastErr; // why we are offline, shown in the chat header
+  http.Client? _client2;
+  StreamSubscription<String>? _sub2;
+  bool _connecting2 = false;
+  int _backoff2 = 4;
+  bool get isOnline => online || online2;
   String? notice; // e.g. "group is full"
 
   Map<String, dynamic> get cfg => Map<String, dynamic>.from((Store.i.d['chatCfg'] ?? {}) as Map);
@@ -301,17 +310,61 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     _sub = null;
     _client?.close();
     _client = null;
+    _sub2?.cancel();
+    _sub2 = null;
+    _client2?.close();
+    _client2 = null;
+    online2 = false;
+  }
+
+  /// Backup relay stream (same encrypted messages; duplicates are ignored by id).
+  Future<void> _connect2() async {
+    if (!paired || _topic == null || _sub2 != null || _connecting2) return;
+    _connecting2 = true;
+    try {
+      final since = cfg['since']?.toString() ?? 'all';
+      _client2 = http.Client();
+      final res = await _client2!.send(http.Request('GET', Uri.parse('$relay2/$_topic/json?since=$since'))).timeout(const Duration(seconds: 25));
+      if (res.statusCode != 200) throw 'status ${res.statusCode}';
+      online2 = true;
+      _backoff2 = 4;
+      notifyListeners();
+      _sub2 = res.stream.transform(utf8.decoder).transform(const LineSplitter()).listen(
+            (line) => _chain = _chain.then((_) => _line(line)).catchError((_) {}),
+            onDone: _reconnect2,
+            onError: (_) => _reconnect2(),
+            cancelOnError: true,
+          );
+    } catch (_) {
+      _reconnect2();
+    } finally {
+      _connecting2 = false;
+    }
+  }
+
+  void _reconnect2() {
+    _sub2?.cancel();
+    _sub2 = null;
+    _client2?.close();
+    _client2 = null;
+    online2 = false;
+    notifyListeners();
+    if (!paired) return;
+    Timer(Duration(seconds: _backoff2), _connect2);
+    _backoff2 = math.min(_backoff2 * 2, 120);
   }
 
   Future<void> _connect() async {
+    unawaited(_connect2());
     if (!paired || _topic == null || _sub != null || _connecting) return;
     _connecting = true;
     try {
       final since = cfg['since']?.toString() ?? 'all';
       _client = http.Client();
       final res = await _client!.send(http.Request('GET', Uri.parse('$relay/$_topic/json?since=$since'))).timeout(const Duration(seconds: 25));
-      if (res.statusCode != 200) throw 'status ${res.statusCode}';
+      if (res.statusCode != 200) throw res.statusCode == 429 ? 'busy' : 'status ${res.statusCode}';
       online = true;
+      lastErr = null;
       _backoff = 2;
       notifyListeners();
       _sub = res.stream.transform(utf8.decoder).transform(const LineSplitter()).listen(
@@ -321,7 +374,12 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
             cancelOnError: true,
           );
       unawaited(_resend());
-    } catch (_) {
+    } catch (e) {
+      lastErr = e == 'busy'
+          ? 'main relay is busy – using the backup'
+          : e is SocketException || e is TimeoutException || e is http.ClientException
+              ? 'no internet on this phone'
+              : 'main relay: $e';
       _reconnect();
     } finally {
       _connecting = false;
@@ -357,8 +415,13 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     if (_topic == null || _key == null) return false;
     try {
       final body = await _seal({...m, 'from': me});
-      final r = await http.post(Uri.parse('$relay/$_topic'), body: body).timeout(const Duration(seconds: 20));
-      return r.statusCode == 200;
+      try {
+        final r = await http.post(Uri.parse('$relay/$_topic'), body: body).timeout(const Duration(seconds: 20));
+        if (r.statusCode == 200) return true;
+      } catch (_) {}
+      // main relay failed or is busy → backup relay
+      final r2 = await http.post(Uri.parse('$relay2/$_topic'), body: body).timeout(const Duration(seconds: 20));
+      return r2.statusCode == 200;
     } catch (_) {
       return false;
     }
@@ -370,10 +433,13 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     try {
       final blob = await _encIso(_key!, bytes);
       final sealed = await _seal({...meta, 'from': me});
-      final r = await http
-          .put(Uri.parse('$relay/$_topic'), body: blob, headers: {'Filename': '${meta['id'] ?? 'f'}.bin', 'Message': sealed})
-          .timeout(const Duration(minutes: 4));
-      return r.statusCode == 200;
+      final headers = {'Filename': '${meta['id'] ?? 'f'}.bin', 'Message': sealed};
+      try {
+        final r = await http.put(Uri.parse('$relay/$_topic'), body: blob, headers: headers).timeout(const Duration(minutes: 4));
+        if (r.statusCode == 200) return true;
+      } catch (_) {}
+      final r2 = await http.put(Uri.parse('$relay2/$_topic'), body: blob, headers: headers).timeout(const Duration(minutes: 4));
+      return r2.statusCode == 200;
     } catch (_) {
       return false;
     }
@@ -647,7 +713,10 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
 
   bool deliveredAll(Map<String, dynamic> m) {
     final got = ((m['gotBy'] as List?) ?? []).toSet();
-    final others = members.entries.where((e) => ((e.value['joined'] as num?) ?? 0) <= (m['at'] as num) + 600000).map((e) => e.key);
+    final stale = DateTime.now().millisecondsSinceEpoch - 3 * 86400000;
+    final others = members.entries
+        .where((e) => ((e.value['joined'] as num?) ?? 0) <= (m['at'] as num) + 600000 && ((e.value['seen'] as num?) ?? 0) > stale)
+        .map((e) => e.key);
     if (others.isEmpty) return m['got'] == true;
     return others.every(got.contains);
   }
@@ -656,7 +725,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Re-send what members haven't confirmed (the relay forgets text after ~12 h, files after ~3 h).
   Future<void> _resend() async {
-    if (!paired || !online) return;
+    if (!paired || !isOnline) return;
     final now = DateTime.now().millisecondsSinceEpoch;
     var budget = 8;
     for (final x in msgs) {
@@ -668,7 +737,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
       final due = x['sent'] != true || (!deliveredAll(x) && now - pub > (isFile ? 150 : 480) * 60000);
       if (!due) continue;
       budget--;
-      final meta = {for (final k in ['id', 'name', 'text', 'at', 'kind', 'fname', 'size']) if (x[k] != null) k: x[k]};
+      final meta = {for (final k in ['id', 'name', 'text', 'at', 'kind', 'fname', 'size', 'clip']) if (x[k] != null) k: x[k]};
       bool ok;
       if (isFile) {
         final f = File(x['path'].toString());
@@ -847,7 +916,7 @@ class _ChatPageState extends State<ChatPage> {
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('మన కుటుంబం · Family chat'),
-          Text(c.online ? '🔒 $n member${n == 1 ? '' : 's'} · end-to-end encrypted' : '⚠️ Connecting… messages wait and send by themselves', style: TextStyle(fontSize: 12, color: c.online ? cs.outline : cs.error)),
+          Text(c.isOnline ? '🔒 $n member${n == 1 ? '' : 's'} · end-to-end encrypted${c.online ? '' : ' · backup relay'}' : '⚠️ Connecting${c.lastErr != null ? ' (${c.lastErr})' : '…'} – messages send by themselves', style: TextStyle(fontSize: 12, color: c.isOnline ? cs.outline : cs.error)),
         ]),
         actions: [IconButton(tooltip: 'Members & settings', onPressed: () => _settings(context), icon: const Icon(Icons.group))],
       ),
