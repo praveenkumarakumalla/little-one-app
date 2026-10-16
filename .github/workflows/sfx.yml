@@ -1,0 +1,42 @@
+name: Collect game sounds
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Only these sounds (space separated, empty = all)"
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  sfx:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect sounds
+        run: |
+          set -o pipefail
+          sudo apt-get install -y ffmpeg > /dev/null
+          pip install edge-tts > /dev/null
+          python3 tool/sfx/get_sfx.py ${{ inputs.only }} 2>&1 | tee sfx.log
+      - name: Report log
+        if: always()
+        run: |
+          python3 - <<'PY'
+          t=open("sfx.log",encoding="utf-8",errors="replace").read()
+          t="\n".join(l for l in t.splitlines() if not l.startswith("::"))[-14000:]
+          for i in range(0,len(t),3500):
+              c=t[i:i+3500].replace("%","%25").replace("\r","").replace("\n","%0A")
+              print(f"::notice title=sfx-log-{i//3500}::{c}")
+          PY
+      - name: Save to the repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A assets/games3d/sfx.js assets/games3d/sfx_credits.json
+          git commit -m "Real game sounds (Freesound CC0/CC-BY + voice shouts)" || exit 0
+          git pull --rebase
+          git push
