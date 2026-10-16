@@ -30,6 +30,7 @@
 <body>
 <div id="grid"></div>
 <div id="wait"><div class="big" id="waitIcon">📞</div><div id="waitText" style="font-size:18px;font-weight:800">Calling…</div></div>
+<div id="tap" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:5;background:rgba(0,0,0,.45);font-size:22px;font-weight:900;text-align:center">🔊 Tap anywhere to hear &amp; see</div>
 <div id="me"><video id="meV" autoplay playsinline muted></video></div>
 <div id="top"><div id="title">Family call</div><div id="status">Connecting…</div></div>
 <div id="bar">
@@ -47,6 +48,7 @@ const $ = (id) => document.getElementById(id);
 const ICE = { iceServers: [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: ['turn:freeturn.net:3478', 'turn:freeturn.net:3478?transport=tcp', 'turns:freeturn.tel:5349'], username: 'free', credential: 'free' },
   { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
   { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
 ] };
@@ -84,15 +86,35 @@ function attach(call, id) {
   call.on('stream', (s) => {
     const v = c.tile.querySelector('video');
     v.srcObject = s;
-    v.play().catch(() => {});
+    v.muted = false;
+    v.volume = 1;
+    v.play().catch(() => showTap());
     if (!s.getVideoTracks().length) c.tile.classList.add('novid');
     if (!joinedAny) { joinedAny = true; post('connected'); clearTimeout(ringTimeout); }
     layout();
+  });
+  const pc = call.peerConnection;
+  if (pc) pc.addEventListener('iceconnectionstatechange', () => {
+    const st = pc.iceConnectionState;
+    if (st === 'checking') $('status').textContent = 'Connecting voice & video…';
+    if (st === 'connected' || st === 'completed') layout();
+    if (st === 'disconnected') $('status').textContent = '📶 Weak network – reconnecting…';
+    if (st === 'failed') { $('status').textContent = '⚠️ Network blocked the call – try Wi-Fi on both phones'; try { pc.restartIce(); } catch (e) {} }
   });
   call.on('close', () => drop(id));
   call.on('error', () => drop(id));
   layout();
 }
+
+function showTap() {
+  $('tap').style.display = 'flex';
+}
+function playAll() {
+  document.querySelectorAll('video').forEach((v) => { if (v.id !== 'meV') v.muted = false; v.play().catch(() => {}); });
+  $('tap').style.display = 'none';
+}
+document.addEventListener('touchstart', playAll, { passive: true });
+document.addEventListener('click', playAll);
 
 function drop(id) {
   const c = calls.get(id);

@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import 'bg.dart';
 import 'chat.dart';
@@ -202,6 +203,9 @@ class _CallPageState extends State<CallPage> {
       ..addJavaScriptChannel('Flutter', onMessageReceived: (m) => _msg(m.message))
       ..setNavigationDelegate(NavigationDelegate(onPageFinished: (_) => _start()))
       ..loadFlutterAsset('assets/call/index.html');
+    // let the other person's voice and video play without an extra tap
+    final p = w.platform;
+    if (p is AndroidWebViewController) p.setMediaPlaybackRequiresUserGesture(false);
   }
 
   Future<void> _start() async {
