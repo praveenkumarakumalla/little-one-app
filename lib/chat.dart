@@ -15,6 +15,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
+import 'baby_say.dart';
 import 'chat_bg.dart';
 import 'clay.dart';
 
@@ -244,6 +245,11 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
 
   bool get isMaster => cfg['master'] == true;
 
+  Future<void> setMaster(bool v) async {
+    await _saveCfg(cfg..['master'] = v);
+    notifyListeners();
+  }
+
   Future<void> pair(String code, String name, {bool master = false}) async {
     final c = cfg;
     c['code'] = code;
@@ -468,12 +474,18 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
           'text': m['text'] ?? '',
           if (m['fname'] != null) 'fname': m['fname'],
           if (m['size'] != null) 'size': m['size'],
+          if (m['clip'] != null) 'clip': m['clip'],
           if (att != null) 'url': att['url'],
         };
         if (idx < 0) {
           l.add(entry);
           l.sort((a, b) => (a['at'] as num).compareTo((b['at'] as num)));
           await _store(l);
+          // "Baby says" from the master phone: speak it out loud here
+          final at = (m['at'] as num?)?.toInt() ?? 0;
+          if (entry['kind'] == 'say' && from != me && DateTime.now().millisecondsSinceEpoch - at < 10 * 60 * 1000) {
+            unawaited(BabySay.play(entry['text'].toString(), entry['clip']?.toString(), background: !appVisible));
+          }
           if (pageOpen && appVisible) {
             await markRead();
           } else if (appVisible) {
@@ -534,7 +546,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     final l = msgs.where((x) => x['from'] != 'sys').toList();
     if (l.isEmpty) return;
     final hist = l.length > 3000 ? l.sublist(l.length - 3000) : l;
-    final slim = hist.map((x) => {for (final k in ['id', 'from', 'name', 'at', 'kind', 'text', 'fname', 'size', 'reacts']) if (x[k] != null) k: x[k]}).toList();
+    final slim = hist.map((x) => {for (final k in ['id', 'from', 'name', 'at', 'kind', 'text', 'fname', 'size', 'reacts', 'clip']) if (x[k] != null) k: x[k]}).toList();
     final mem = members..[me] = {'name': myName, 'seen': DateTime.now().millisecondsSinceEpoch, 'joined': cfg['joinedAt'] ?? 0};
     await _publishFile({'t': 'hist', 'for': forDev, 'name': myName}, utf8.encode(jsonEncode({'msgs': slim, 'members': mem})));
   }
@@ -586,11 +598,11 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> deleteLocal(String id) async => _store(msgs.where((x) => x['id'] != id).toList());
 
-  Future<void> send(String text, {String kind = 'text'}) async {
+  Future<void> send(String text, {String kind = 'text', Map<String, dynamic>? extra}) async {
     text = text.trim();
     if (text.isEmpty || !paired) return;
     if (text.length > 1500) text = text.substring(0, 1500);
-    final m = <String, dynamic>{'id': Store.newId(), 'from': me, 'name': myName, 'text': text, 'at': DateTime.now().millisecondsSinceEpoch, 'kind': kind};
+    final m = <String, dynamic>{'id': Store.newId(), 'from': me, 'name': myName, 'text': text, 'at': DateTime.now().millisecondsSinceEpoch, 'kind': kind, ...?extra};
     await _store(msgs..add({...m, 'sent': false}));
     final ok = await _publish({'t': 'msg', ...m});
     if (ok) await _patch(m['id'].toString(), {'sent': true, 'pubAt': DateTime.now().millisecondsSinceEpoch});
@@ -882,6 +894,16 @@ class _ChatPageState extends State<ChatPage> {
                 },
                 icon: Icon(emojis ? Icons.keyboard : Icons.emoji_emotions_outlined),
               ),
+              if (c.isMaster)
+                IconButton(
+                  tooltip: 'Baby says… (spoken on the other phones)',
+                  onPressed: () async {
+                    final pick = await pickBabySay(context);
+                    if (pick == null) return;
+                    await c.send(pick.$1, kind: 'say', extra: {if (pick.$2 != null) 'clip': pick.$2});
+                  },
+                  icon: const Text('🔊', style: TextStyle(fontSize: 22)),
+                ),
               IconButton(tooltip: 'Photo, video, document', onPressed: sending ? null : _attach, icon: const Icon(Icons.attach_file)),
               Expanded(
                 child: TextField(
@@ -1045,7 +1067,16 @@ class _ChatPageState extends State<ChatPage> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (!mine) Padding(padding: EdgeInsets.only(left: isMedia ? 6 : 0, bottom: 2), child: Text(m['name'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: cs.primary))),
               if (isMedia) _media(context, m),
-              if ((m['text'] ?? '').toString().isNotEmpty) Padding(padding: EdgeInsets.only(left: isMedia ? 6 : 0, top: isMedia ? 4 : 0), child: Text(m['text'].toString(), style: TextStyle(fontSize: _onlyEmoji(m['text'].toString()) ? 34 : 16))),
+              if (m['kind'] == 'say')
+                InkWell(
+                  onTap: () => BabySay.play(m['text'].toString(), m['clip']?.toString()),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('🔊👶 ', style: TextStyle(fontSize: 20)),
+                    Flexible(child: Text(m['text'].toString(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
+                    const Icon(Icons.replay, size: 18),
+                  ]),
+                )
+              else if ((m['text'] ?? '').toString().isNotEmpty) Padding(padding: EdgeInsets.only(left: isMedia ? 6 : 0, top: isMedia ? 4 : 0), child: Text(m['text'].toString(), style: TextStyle(fontSize: _onlyEmoji(m['text'].toString()) ? 34 : 16))),
               Padding(padding: EdgeInsets.only(right: isMedia ? 6 : 0), child: Align(alignment: Alignment.bottomRight, child: Text('${hm(at)}$tick', style: TextStyle(fontSize: 11, color: cs.outline)))),
             ]),
           ),
@@ -1199,6 +1230,19 @@ class _ChatPageState extends State<ChatPage> {
                     await Share.share('Our new Little One family code 👶💬\nCode: $code\nOpen Little One → Chat → Leave group → "Join with code".');
                   },
                 ),
+              StatefulBuilder(
+                builder: (_, set) => SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: const Text('👑', style: TextStyle(fontSize: 24)),
+                  title: const Text('This is the master phone'),
+                  subtitle: const Text('Shows the 🔊 "Baby says" button and the change-code option. Turn on only on one phone (Nanna\'s Motorola).'),
+                  value: c.isMaster,
+                  onChanged: (v) async {
+                    await c.setMaster(v);
+                    set(() {});
+                  },
+                ),
+              ),
               ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.sync), title: const Text('Reconnect'), onTap: () => c.reconnectNow()),
               ListTile(
                 contentPadding: EdgeInsets.zero,
