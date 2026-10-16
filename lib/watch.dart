@@ -77,9 +77,9 @@ class SleepWatch extends ChangeNotifier {
     ep = null;
     on = true;
     state = 'Learning how quiet the room is… stay quiet 4 seconds';
-    _sub = stream.listen(_onChunk, onError: (_) {}, onDone: () {
-      if (on) stop(remember: false);
-    });
+    _lastChunk = DateTime.now();
+    _sub = stream.listen(_onChunk, onError: (_) {});
+    _startDog();
     await Store.i.setSetting('autoWatch', true);
     // so Android doesn't stop the listening when the screen is locked
     if (Store.i.settings['askedBattery'] != true) {
@@ -93,6 +93,7 @@ class SleepWatch extends ChangeNotifier {
 
   Future<void> stop({bool remember = true}) async {
     on = false;
+    _dog?.cancel();
     await _sub?.cancel();
     _sub = null;
     try {
@@ -112,7 +113,33 @@ class SleepWatch extends ChangeNotifier {
     if (log.length > 12) log.removeLast();
   }
 
+  DateTime _lastChunk = DateTime.now();
+  DateTime? _speakSince;
+  Timer? _dog;
+
+  /// Watchdog: if the microphone stream stops (phone took it away, audio focus, OEM battery saver),
+  /// start it again so listening never silently ends.
+  void _startDog() {
+    _dog?.cancel();
+    _dog = Timer.periodic(const Duration(seconds: 6), (_) async {
+      if (!on) return;
+      if (DateTime.now().difference(_lastChunk).inSeconds > 8) {
+        _log('Microphone went quiet – restarting listening');
+        try {
+          await _sub?.cancel();
+          await _rec.stop();
+        } catch (_) {}
+        try {
+          final stream = await _rec.startStream(const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: sr, numChannels: 1, autoGain: false, echoCancel: false, noiseSuppress: false));
+          _lastChunk = DateTime.now();
+          _sub = stream.listen(_onChunk, onError: (_) {});
+        } catch (_) {}
+      }
+    });
+  }
+
   void _onChunk(Uint8List bytes) {
+    _lastChunk = DateTime.now();
     final bd = ByteData.sublistView(bytes);
     for (var i = 0; i + 1 < bytes.length; i += 2) {
       _pending.add(bd.getInt16(i, Endian.little) / 32768.0);
@@ -200,6 +227,13 @@ class SleepWatch extends ChangeNotifier {
     final base = _base!;
     level = ((db - base) / (sens * 1.8)).clamp(0.0, 1.0);
     final now = DateTime.now();
+    // never stay "paused" for long: if the voice says it is still speaking after 25 s, ignore it
+    if (Voice.i.speaking) {
+      _speakSince ??= now;
+      if (now.difference(_speakSince!).inSeconds > 25) Voice.i.speaking = false;
+    } else {
+      _speakSince = null;
+    }
     if (now.isBefore(_muteUntil) || Voice.i.speaking) {
       // the app itself is talking — don't listen to ourselves
       if (ep != null) ep!.lastCry = ep!.lastCry.add(const Duration(milliseconds: 100));
@@ -276,7 +310,7 @@ class SleepWatch extends ChangeNotifier {
     if (!e.alerted && quiet < 10 && now.difference(e.start).inSeconds >= 60 && Store.i.settings['alertFamily'] != false && Chat.i.paired) {
       e.alerted = true;
       final r = e.reasons.isNotEmpty ? e.reasons.first : null;
-      unawaited(Chat.i.send('${Store.i.babyName} ఏడుస్తోంది!${r != null ? ' ${r.te} కావొచ్చు.' : ''} ఎవరైనా చూడండి.', kind: 'say'));
+      unawaited(Chat.i.send('${Store.i.babyName} ఏడుస్తోంది!${r != null ? ' ${r.te} కావొచ్చు.' : ''} ఎవరైనా చూడండి.', kind: 'say', extra: {'clip': 'p_crying'}));
       _log('Told the family phones');
     }
     if (quiet >= 45) {
