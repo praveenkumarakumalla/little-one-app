@@ -10,11 +10,11 @@ import 'voice.dart';
 
 /// "Talking baby": the app itself speaks in a cute baby voice —
 /// every hour 8 AM–8 PM it asks about the family, at 12 PM it wants biryani or pizza (said twice),
-/// and at 8:30 PM it asks for "Jai Shree Ram". Works even when the app is closed
+/// at 8 AM it says good morning, and at 8 PM good night with "Jai Shree Ram". Works even when the app is closed
 /// (the sentences are saved as voice files on the phone and played by the alarm service).
 class Talk {
   static const base = 1000; // alarm ids 1000…1099
-  static const version = 2; // bump when the words change, to re-make the voice files
+  static const version = 3; // bump when the words change, to re-make the voice files
 
   /// key: [Telugu, Devanagari (for Hindi voice), Latin (for English voice), notification title]
   static const lines = <String, List<String>>{
@@ -24,6 +24,8 @@ class Talk {
     'tatayya': ['తాతయ్య ఏం చేస్తున్నాడు?', 'तातय्या एम चेस्तुन्नाडु?', 'Tatayya em chestunnadu?', '👶 తాతయ్య ఏం చేస్తున్నాడు?'],
     'biryani': ['అమ్మా, నాకు బిర్యానీ కావాలి! ... అమ్మా, నాకు బిర్యానీ కావాలి!', 'अम्मा, नाकु बिर्यानी कावालि! ... अम्मा, नाकु बिर्यानी कावालि!', 'Amma, naku biryani kavali! ... Amma, naku biryani kavali!', '🍗 అమ్మా, నాకు బిర్యానీ కావాలి!'],
     'pizza': ['అమ్మా, నాకు పిజ్జా కావాలి! ... అమ్మా, నాకు పిజ్జా కావాలి!', 'अम्मा, नाकु पिज़्ज़ा कावालि! ... अम्मा, नाकु पिज़्ज़ा कावालि!', 'Amma, naku pizza kavali! ... Amma, naku pizza kavali!', '🍕 అమ్మా, నాకు పిజ్జా కావాలి!'],
+    'gm': ['గుడ్ మార్నింగ్ అమ్మా! లేచావా?', 'गुड मॉर्निंग अम्मा! लेचावा?', 'Good morning Amma! Lechava?', '☀️ గుడ్ మార్నింగ్ అమ్మా! లేచావా?'],
+    'gn': ['గుడ్ నైట్ అమ్మా! నాకు జై శ్రీ రామ్ చెప్పి బజ్జో. జై శ్రీ రామ్!', 'गुड नाइट अम्मा! नाकु जय श्री राम चेप्पि बज्जो. जय श्री राम!', 'Good night Amma! Naku Jai Shree Ram cheppi bajjo. Jai Shree Ram!', '🌙 గుడ్ నైట్ అమ్మా! జై శ్రీ రామ్ చెప్పి బజ్జో'],
     'ram': ['అమ్మా, నాకు జై శ్రీ రామ్ చెప్పు! జై శ్రీ రామ్!', 'अम्मा, नाकु जय श्री राम चेप्पु! जय श्री राम!', 'Amma, naku Jai Shree Ram cheppu! Jai Shree Ram!', '🙏 అమ్మా, నాకు జై శ్రీ రామ్ చెప్పు!'],
   };
 
@@ -38,6 +40,10 @@ class Talk {
     'food': [
       ['🍗 సరే, తెస్తా!', 'యే! థాంక్యూ అమ్మా!', 'r_food_yes'],
       ['🍼 ముందు పాలు తాగు', 'సరే అమ్మా… పాలే నాకు ఇష్టం!', 'r_food_milk'],
+    ],
+    'gm': [
+      ['☀️ లేచా!', 'యే! గుడ్ మార్నింగ్ అమ్మా! ఐ లవ్ యూ!', 'r_gm'],
+      ['😴 ఇంకా నిద్ర', 'సరే, ఇంకొంచెం బజ్జో అమ్మా!', 'r_rest'],
     ],
     'ram': [
       ['🙏 జై శ్రీ రామ్!', 'జై శ్రీ రామ్! థాంక్యూ అమ్మా. గుడ్ నైట్!', 'r_ram'],
@@ -99,7 +105,11 @@ class Talk {
         final slots = <MapEntry<DateTime, String>>[];
         for (var h = 8; h <= 20; h++) {
           String key;
-          if (h == 12) {
+          if (h == 8) {
+            key = 'gm';
+          } else if (h == 20) {
+            key = 'gn';
+          } else if (h == 12) {
             key = r.nextBool() ? 'biryani' : 'pizza';
           } else {
             final pick = asks.where((a) => a != lastAsk).toList();
@@ -108,7 +118,6 @@ class Talk {
           }
           slots.add(MapEntry(d0.add(Duration(hours: h)), key));
         }
-        slots.add(MapEntry(d0.add(const Duration(hours: 20, minutes: 30)), 'ram'));
         for (final s in slots) {
           if (!s.key.isAfter(now.add(const Duration(seconds: 30)))) continue;
           final p = await _path(s.value);
@@ -147,7 +156,7 @@ class Talk {
     if (!await Voice.i.clip(k, volume: (Store.i.settings['talkVol'] as num?)?.toDouble() ?? 0.8)) await Voice.i.say(l[0], dev: l[1], lat: l[2], pitch: 1.85);
   }
 
-  static String group(String key) => key == 'ram' ? 'ram' : (key == 'biryani' || key == 'pizza') ? 'food' : 'ask';
+  static String group(String key) => key == 'gm' ? 'gm' : (key == 'ram' || key == 'gn') ? 'ram' : (key == 'biryani' || key == 'pizza') ? 'food' : 'ask';
 }
 
 /// The little sheet shown in the app when the baby talks (if the app is open).

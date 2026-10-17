@@ -458,7 +458,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             },
           ),
         ]),
-        Text('Every hour 8 AM–8 PM she asks "అమ్మా / నాన్న / అమ్మమ్మ / తాతయ్య ఏం చేస్తున్నారు?" · 12 PM 🍗 biryani or 🍕 pizza (2 times) · 8:30 PM 🙏 జై శ్రీ రామ్. Works even when the app is closed.', style: TextStyle(fontSize: 12.5, color: p.ink.withValues(alpha: 0.85))),
+        Text('☀️ 8 AM "గుడ్ మార్నింగ్ అమ్మా, లేచావా?" · every hour she asks "అమ్మా / నాన్న / అమ్మమ్మ / తాతయ్య ఏం చేస్తున్నారు?" · 12 PM 🍗 biryani or 🍕 pizza · 🌙 8 PM "గుడ్ నైట్ అమ్మా, జై శ్రీ రామ్ చెప్పి బజ్జో". Works even when the app is closed.', style: TextStyle(fontSize: 12.5, color: p.ink.withValues(alpha: 0.85))),
         Row(children: [
           Text('🔉', style: TextStyle(color: p.ink)),
           Expanded(
