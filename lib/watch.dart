@@ -433,7 +433,7 @@ class SleepWatch extends ChangeNotifier {
 
   Future<void> _onLoud() async {
     _muteUntil = DateTime.now().add(const Duration(seconds: 8));
-    _log('Loud voices → said బేబీ బజ్జో ఉంది');
+    _log('Loud voices → baby said ష్ ష్… అరవకండి');
     notifyListeners();
     await Voice.i.shh();
   }
@@ -534,7 +534,7 @@ class WatchPage extends StatelessWidget {
             ),
             const CryLiveCard(),
             SwitchListTile(value: st['wCry'] != false, onChanged: (v) => s.setSetting('wCry', v), title: const Text('She cries → listen to the cry and say the reason aloud')),
-            SwitchListTile(value: st['wShh'] != false, onChanged: (v) => s.setSetting('wShh', v), title: const Text('Loud voices → say "బేబీ బజ్జో ఉంది, అరవకండి"')),
+            SwitchListTile(value: st['wShh'] != false, onChanged: (v) => s.setSetting('wShh', v), title: const Text('Loud voices → baby says "ష్ ష్… నేను బజ్జుంటున్నా, అరవకండి ప్లీజ్!"')),
             SwitchListTile(value: st['autoWatch'] == true, onChanged: (v) => s.setSetting('autoWatch', v), title: const Text('Start listening automatically when I open the app')),
             const SizedBox(height: 8),
             Text('How loud before it reacts', style: Theme.of(context).textTheme.titleSmall),

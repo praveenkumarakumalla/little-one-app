@@ -129,7 +129,7 @@ class Voice {
   }
 
   Future<void> shh() async {
-    if (!await clip('shh')) await say('బేబీ బజ్జో ఉంది, అరవకండి!', dev: 'बेबी बज्जो उंदी, अरवकंडि!', lat: 'Baby bajjo undi, aravakandi!', pitch: 1.1);
+    if (!await clip('shh')) await say('ష్ ష్… నేను బజ్జుంటున్నా, అరవకండి ప్లీజ్!', dev: 'श् श्… नेनु बज्जुंटुन्ना, अरवकंडि प्लीज़!', lat: 'Shh shh… nenu bajjuntunna, aravakandi please!', pitch: 1.85);
   }
 
   Future<void> chime() async {
