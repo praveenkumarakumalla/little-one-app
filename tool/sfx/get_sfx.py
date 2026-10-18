@@ -39,6 +39,9 @@ SPECS = {
     "fanfare":     (["fanfare win", "victory fanfare", "trumpet fanfare short"], 1, 3.0, False, r"loop"),
     "fail":        (["sad trombone", "fail trombone", "wah wah"], 1, 2.2, False, r"loop"),
     "click":       (["ui click soft", "button click", "click soft"], 2, 0.15, True, r"loop|music|mouse|keyboard"),
+    "bubble":      (["bubble pop", "bubble popping", "water bubble pop", "pop bubble wrap single"], 5, 0.35, True, r"music|loop|wrap roll|gum"),
+    "bubbles":     (["bubbles water short", "bubbling water", "underwater bubbles short"], 2, 1.2, False, r"music|loop|boil|fish tank|aquarium"),
+    "sparkle":     (["magic sparkle", "twinkle sparkle", "fairy sparkle"], 2, 1.2, False, r"music|loop"),
     "meadow":      (["meadow birds ambience", "countryside ambience birds", "spring meadow"], 1, 24.0, False, r"traffic|road|rain|car"),
 }
 
@@ -51,6 +54,7 @@ SHOUTS = {
     "v_checkmate": ("Checkmate!", "+0%"), "v_six": ("Six!", "+15%"), "v_ladder": ("Yay! Ladder!", "+10%"),
     "v_snake": ("Oh no! Snake!", "+5%"), "v_win": ("You win! Hooray!", "+5%"), "v_home": ("Home!", "+10%"),
     "v_capture": ("Gotcha!", "+10%"), "v_point": ("Point!", "+10%"), "v_go": ("Ready, go!", "+10%"),
+    "v_combo": ("Combo!", "+15%"), "v_boom": ("Boom!", "+10%"), "v_chain": ("Chain reaction!", "+10%"),
     "v_your_turn": ("Your turn!", "+10%"), "v_draw": ("Draw a card!", "+10%"),
 }
 VOICE = "en-US-AnaNeural"
