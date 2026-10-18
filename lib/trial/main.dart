@@ -154,12 +154,14 @@ class _TrialShellState extends State<TrialShell> {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
           child: ClayBox(
             radius: 30,
+            height: 78,
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(children: [
               _nav(0, Icons.home_rounded, tr('Home', 'హోమ్')),
               _nav(1, Icons.favorite_rounded, tr('Care', 'సంరక్షణ')),
               Expanded(
-                child: Center(
+                child: Align(
+                  heightFactor: 1,
                   child: GestureDetector(
                     onTap: _plus,
                     child: Container(
