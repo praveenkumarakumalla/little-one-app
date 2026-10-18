@@ -127,7 +127,7 @@ class _HomeTabState extends State<HomeTab> {
               ),
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 for (var i = 0; i < (c == null ? 2 : 3); i++)
-                  AnimatedContainer(duration: const Duration(milliseconds: 200), width: page == i ? 18 : 6, height: 6, margin: const EdgeInsets.all(3), decoration: BoxDecoration(color: page == i ? K.indigo : const Color(0xFFC9C3DD), borderRadius: BorderRadius.circular(4))),
+                  AnimatedContainer(duration: const Duration(milliseconds: 200), width: page == i ? 18 : 6, height: 6, margin: const EdgeInsets.all(3), decoration: BoxDecoration(color: page == i ? K.indigo : const Color(0xFFEBC9D3), borderRadius: BorderRadius.circular(4))),
               ]),
               const Padding(padding: EdgeInsets.symmetric(horizontal: 18), child: CryLiveCard()),
               Padding(

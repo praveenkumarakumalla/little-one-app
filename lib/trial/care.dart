@@ -95,9 +95,9 @@ class _CareTabState extends State<CareTab> {
             for (var i = 0; i < events.length; i++)
               Row(children: [
                 Column(children: [
-                  Container(width: 2, height: 10, color: i == 0 ? Colors.transparent : const Color(0xFFDCD6EC)),
+                  Container(width: 2, height: 10, color: i == 0 ? Colors.transparent : const Color(0xFFF2D9DF)),
                   Container(width: 12, height: 12, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: K.indigo, width: 3), color: Colors.white)),
-                  Container(width: 2, height: 22, color: i == events.length - 1 ? Colors.transparent : const Color(0xFFDCD6EC)),
+                  Container(width: 2, height: 22, color: i == events.length - 1 ? Colors.transparent : const Color(0xFFF2D9DF)),
                 ]),
                 const SizedBox(width: 12),
                 Icon(events[i].$3, size: 18, color: K.indigo),

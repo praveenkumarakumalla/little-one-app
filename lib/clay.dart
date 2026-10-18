@@ -107,7 +107,7 @@ class ClayBubble extends StatelessWidget {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Clay(
       color: dark ? const Color(0xFF3A2D42) : Colors.white,
-      color2: dark ? const Color(0xFF2E2335) : const Color(0xFFECE9F5),
+      color2: dark ? const Color(0xFF2E2335) : const Color(0xFFFFF0E3),
       radius: size / 2,
       depth: 3,
       padding: EdgeInsets.zero,
@@ -161,12 +161,12 @@ class ClayPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Clay(
         color: Colors.white,
-        color2: const Color(0xFFECE9F5),
+        color2: const Color(0xFFFFF0E3),
         radius: 12,
         depth: 3,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
         height: 24,
-        child: Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF34277F))),
+        child: Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF5A3D4B))),
       );
 }
 
@@ -183,8 +183,8 @@ class ClayCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final base = color ?? (dark ? const Color(0xFF2A1E31) : const Color(0xFFF7F5FB));
-    final c2 = color == null ? (dark ? const Color(0xFF241A2A) : const Color(0xFFECE9F5)) : Clay.shade(base, dark ? -0.03 : -0.04);
+    final base = color ?? (dark ? const Color(0xFF2A1E31) : const Color(0xFFFFFBF6));
+    final c2 = color == null ? (dark ? const Color(0xFF241A2A) : const Color(0xFFFFF0E3)) : Clay.shade(base, dark ? -0.03 : -0.04);
     return Padding(
       padding: margin ?? const EdgeInsets.symmetric(vertical: 8),
       child: Material(

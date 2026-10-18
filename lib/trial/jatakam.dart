@@ -189,7 +189,7 @@ class _SouthChart extends StatelessWidget {
                         ? const SizedBox()
                         : Container(
                             margin: const EdgeInsets.all(2.5),
-                            decoration: BoxDecoration(color: r == c.rasi ? K.pinkSoft : Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFDCD6EC))),
+                            decoration: BoxDecoration(color: r == c.rasi ? K.pinkSoft : Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFF2D9DF))),
                             padding: const EdgeInsets.all(4),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text(K.te ? Astro.rasiTe[r] : Astro.rasiShort[r], maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9, color: K.muted)),
