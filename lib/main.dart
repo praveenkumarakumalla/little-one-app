@@ -44,7 +44,7 @@ Future<void> main() async {
   runApp(const LittleOneApp());
 }
 
-const pink = Color(0xFFE0789C); // the app's main colour (strawberry milk)
+const pink = Color(0xFF9478D4); // the app's main colour (lavender)
 
 class LittleOneApp extends StatelessWidget {
   const LittleOneApp({super.key});

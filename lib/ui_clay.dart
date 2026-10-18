@@ -7,15 +7,15 @@ import 'store.dart';
 
 /// Clay theme (soft pink + deep indigo + off-white, puffy rounded cards).
 class K {
-  static const indigo = Color(0xFFE0789C); // strawberry milk (main colour)
-  static const deep = Color(0xFFC25A80); // raspberry
-  static const violet = Color(0xFFF4A7C0);
-  static const pink = Color(0xFFFFD9CC); // peach cream
-  static const pinkSoft = Color(0xFFFDE4EA); // milk pink
+  static const indigo = Color(0xFF9478D4); // lavender (main colour)
+  static const deep = Color(0xFF6F55B0); // deep lavender
+  static const violet = Color(0xFFC3AEF0);
+  static const pink = Color(0xFFE6DAFB); // light lavender
+  static const pinkSoft = Color(0xFFF3ECFD); // lavender milk
   static const card = Color(0xFFFFFBF6); // milk
   static const bg = Color(0xFFFFF4EA); // cream
-  static const ink = Color(0xFF5A3D4B); // cocoa
-  static const muted = Color(0xFFA08893);
+  static const ink = Color(0xFF4E3B5C); // plum
+  static const muted = Color(0xFF9A8AA6);
   static const good = Color(0xFF2EAE7A);
   static const warn = Color(0xFFE0861F);
   static const bad = Color(0xFFD9434E);
@@ -202,7 +202,7 @@ class Pill extends StatelessWidget {
         decoration: BoxDecoration(
           color: on ? K.indigo : K.pinkSoft,
           borderRadius: BorderRadius.circular(30),
-          boxShadow: [BoxShadow(color: (on ? K.deep : const Color(0xFFE2B5C4)).withValues(alpha: 0.5), blurRadius: 10, offset: const Offset(0, 5))],
+          boxShadow: [BoxShadow(color: (on ? K.deep : const Color(0xFFD8CBF2)).withValues(alpha: 0.5), blurRadius: 10, offset: const Offset(0, 5))],
         ),
         child: Text(text, style: TextStyle(color: on ? Colors.white : K.ink, fontWeight: FontWeight.w600, fontSize: 13)),
       ),

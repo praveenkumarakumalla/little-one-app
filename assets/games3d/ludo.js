@@ -343,6 +343,7 @@
               G.snd.capture();
               G.haptic('heavy');
               G.toast('💥 ' + cur().name + ' cut ' + players[q].name + '!');
+              if (cur().bot) G.botTease(cur(), ['😈', '😂', '😎', '🤪']);
               const v = pawnMeshes[q][j];
               v.userData.baseScale = v.scale.y;
               await G.hopTo(v, tokenSpot(q, j), 700, 3.2);

@@ -29,15 +29,15 @@
   .ucard .big { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 900; font-style: italic; font-size: 34px; text-shadow: 2px 2px 0 rgba(0,0,0,.25); -webkit-text-stroke: 1px rgba(0,0,0,.25); }
   .ucard .tl, .ucard .br { position: absolute; font-weight: 900; font-size: 13px; color: #fff; text-shadow: 1px 1px 0 rgba(0,0,0,.4); }
   .ucard .tl { left: 4px; top: 2px; } .ucard .br { right: 4px; bottom: 2px; transform: rotate(180deg); }
-  .ucard.back .in { background: radial-gradient(circle at 50% 45%, #3a2a55, #160d24); }
-  .ucard.back .ov { background: #e8323c; }
+  .ucard.back .in { background: radial-gradient(circle at 50% 45%, #8f6fd6, #4a2f8f); }
+  .ucard.back .ov { background: #f39ab8; }
   .ucard.back .big { color: #ffd84a; font-size: 15px; -webkit-text-stroke: 0; transform: rotate(-28deg); letter-spacing: 1px; }
   .ucard.play { box-shadow: 0 0 0 3px #fff, 0 0 18px 4px rgba(255,236,120,.9), 0 6px 12px rgba(0,0,0,.4); }
   .ucard.dim { opacity: .82; } .ucard.dim .in { filter: brightness(.8) saturate(.8); }
   .ucard.small { width: 34px; height: 50px; padding: 2px; border-radius: 6px; }
   .ucard.small .big { font-size: 9px; }
   .uav { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 2px; transform: translate(-50%,-50%); transition: all .3s; }
-  .uav .face { width: 58px; height: 58px; border-radius: 18px; font-size: 36px; display: flex; align-items: center; justify-content: center; background: linear-gradient(#fff,#ffe3ee); box-shadow: 0 4px 0 rgba(0,0,0,.2), 0 0 0 3px #fff; }
+  .uav .face { width: 58px; height: 58px; border-radius: 18px; font-size: 36px; display: flex; align-items: center; justify-content: center; background: linear-gradient(#fffbf6,#efe6fb); box-shadow: 0 4px 0 rgba(0,0,0,.2), 0 0 0 3px #fff; }
   .uav.on .face { box-shadow: 0 0 0 4px #ffd84a, 0 0 22px 6px rgba(255,216,74,.8); animation: bob 1s infinite; }
   .uav .nm { color: #fff; font-weight: 900; font-size: 13px; text-shadow: 0 2px 4px rgba(0,0,0,.8); white-space: nowrap; }
   .uav .cnt { position: absolute; top: -6px; right: -10px; background: #e8323c; color: #fff; font-weight: 900; font-size: 13px; min-width: 24px; height: 24px; border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 2px solid #fff; }
@@ -53,7 +53,9 @@
   #unoBtn:active { transform: translateY(5px); box-shadow: 0 1px 0 #7d0710; }
   #unoBtn.ready { animation: pulse .7s infinite; }
   #unoBtn.on { filter: brightness(1.3); }
-  #upass { position: absolute; left: 14px; bottom: 160px; display: none; }
+  #upass { display: none; height: 50px; padding: 0 26px; border-radius: 25px; font-size: 18px; font-weight: 900; color: #fff; border: none;
+    background: linear-gradient(#b9a1ec, #8f6fd6); box-shadow: 0 5px 0 #6a4fb0, 0 10px 18px rgba(60,30,90,.35); animation: pulse 1.2s infinite; }
+  #upass:active { transform: translateY(4px); box-shadow: 0 1px 0 #6a4fb0; }
   #upick { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.45); z-index: 9; }
   #upick.show { display: flex; }
   #upick .wheel { width: 240px; height: 240px; border-radius: 50%; position: relative; overflow: hidden; box-shadow: 0 0 0 8px #fff, 0 20px 40px rgba(0,0,0,.5); animation: pop .35s; }
@@ -71,7 +73,7 @@
     const r = document.createElement('div');
     r.id = 'uno';
     r.innerHTML = `<div id="udir"></div><div id="ucolor"></div><div id="ucolorName"></div>
-      <button id="unoBtn">UNO!</button><button class="btn" id="upass">Pass ▶</button>`;
+      <button id="unoBtn">UNO!</button>`;
     document.body.appendChild(r);
     const pick = document.createElement('div');
     pick.id = 'upick';
@@ -80,7 +82,12 @@
     const cur = document.createElement('div');
     cur.id = 'ucurtain';
     document.body.appendChild(cur);
-    el = { root: r, pick, curtain: cur, color: r.querySelector('#ucolor'), cname: r.querySelector('#ucolorName'), dir: r.querySelector('#udir'), uno: r.querySelector('#unoBtn'), pass: r.querySelector('#upass'), cards: new Map(), avs: [] };
+    const pass = document.createElement('button');
+    pass.id = 'upass';
+    pass.textContent = 'Pass ▶';
+    G.$('actions').innerHTML = '';
+    G.$('actions').appendChild(pass);
+    el = { root: r, pick, curtain: cur, color: r.querySelector('#ucolor'), cname: r.querySelector('#ucolorName'), dir: r.querySelector('#udir'), uno: r.querySelector('#unoBtn'), pass, cards: new Map(), avs: [] };
     el.uno.onclick = () => {
       unoPressed = true;
       el.uno.classList.add('on');
@@ -126,37 +133,49 @@
     if (root) G.scene.remove(root);
     root = new THREE.Group();
     G.scene.add(root);
-    G.setBackground('#1d4f8f', '#0a1530');
+    G.setBackground('#c9b4f2', '#6d4fb8');
     const felt = G.canvasTex(1024, 1024, (g, w) => {
       const gr = g.createRadialGradient(w / 2, w / 2, 40, w / 2, w / 2, w / 2);
-      gr.addColorStop(0, '#53c26a');
-      gr.addColorStop(0.7, '#2f9a4a');
-      gr.addColorStop(1, '#1d6e33');
+      gr.addColorStop(0, '#a98be6');
+      gr.addColorStop(0.65, '#7d5cc9');
+      gr.addColorStop(1, '#5a3ea6');
       g.fillStyle = gr;
       g.fillRect(0, 0, w, w);
       g.globalAlpha = 0.08;
       for (let i = 0; i < 6000; i++) { g.fillStyle = Math.random() > 0.5 ? '#fff' : '#000'; g.fillRect(Math.random() * w, Math.random() * w, 2, 2); }
-      g.globalAlpha = 0.12;
-      g.strokeStyle = '#fff';
-      g.lineWidth = 14;
+      // sparkles and a soft gold ring with the game name
+      for (let i = 0; i < 70; i++) { g.globalAlpha = 0.25 + Math.random() * 0.4; g.fillStyle = '#fff6d8'; const x = Math.random() * w, y = Math.random() * w, r = 1.5 + Math.random() * 3; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
+      g.globalAlpha = 0.55;
+      g.strokeStyle = '#ffe9a8';
+      g.lineWidth = 10;
       g.beginPath();
-      g.arc(w / 2, w / 2, w * 0.3, 0, Math.PI * 2);
+      g.arc(w / 2, w / 2, w * 0.31, 0, Math.PI * 2);
       g.stroke();
+      g.lineWidth = 3;
+      g.beginPath();
+      g.arc(w / 2, w / 2, w * 0.335, 0, Math.PI * 2);
+      g.stroke();
+      g.globalAlpha = 0.22;
+      g.fillStyle = '#fffbf6';
+      g.font = 'bold italic 70px sans-serif';
+      g.textAlign = 'center';
+      g.fillText('LITTLE ONE', w / 2, w * 0.86);
+      g.fillText('UNO', w / 2, w * 0.2);
       g.globalAlpha = 1;
     });
     const top = new THREE.Mesh(new THREE.CylinderGeometry(6.2, 6.2, 0.3, 80), [
-      new THREE.MeshPhysicalMaterial({ map: G.woodTexture('#7a3f1d', 4), roughness: 0.35, clearcoat: 0.8 }),
+      new THREE.MeshPhysicalMaterial({ color: 0xf6e7c8, roughness: 0.3, clearcoat: 1 }),
       new THREE.MeshStandardMaterial({ map: felt, roughness: 0.95 }),
       new THREE.MeshStandardMaterial({ color: 0x3a1d0d }),
     ]);
     top.receiveShadow = true;
     root.add(top);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(6.25, 0.32, 20, 90), new THREE.MeshPhysicalMaterial({ map: G.woodTexture('#8a4a22', 6), roughness: 0.3, clearcoat: 1 }));
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(6.25, 0.32, 20, 90), new THREE.MeshPhysicalMaterial({ color: 0xe9c87a, metalness: 0.6, roughness: 0.25, clearcoat: 1 }));
     rim.rotation.x = Math.PI / 2;
     rim.position.y = 0.2;
     G.shadowed(rim);
     root.add(rim);
-    const floor = G.addTable('#3b2a4a', 80);
+    const floor = G.addTable('#f3e9dc', 80);
     floor.position.y = -1.5;
     root.add(floor);
     G.setView(new THREE.Vector3(0, 0, 0.6), 0.5, 15, 0);
@@ -268,7 +287,7 @@
     el.cname.style.color = COLORS[color];
     el.dir.innerHTML = dir === 1 ? '<span style="left:8px;top:40%">⤸</span><span style="right:8px;top:40%">⤹</span>' : '<span style="left:8px;top:40%">⤹</span><span style="right:8px;top:40%">⤸</span>';
     const me = turn === viewSeat && G.mine(players[turn]) && !over;
-    el.pass.style.display = me && drew && !busy ? 'block' : 'none';
+    el.pass.style.display = me && drew && !busy ? 'inline-block' : 'none';
     el.uno.style.display = showHand ? 'block' : 'none';
     el.uno.classList.toggle('ready', showHand && hands[viewSeat].length === 2 && turn === viewSeat && !unoPressed);
     G.players(players.map((p, i) => ({ name: p.name, color: G.seatColor(i), bot: p.bot, extra: hands[i].length + '🂠' })), turn);
@@ -435,6 +454,7 @@
       const victim = (turn + dir + players.length) % players.length;
       const k = c.v === 12 ? 2 : 4;
       G.toast(`${players[victim].name} draws ${k}! 😈`);
+      if (players[turn].bot) G.botTease(players[turn], ['😈', '😂', '😜', '🤪']);
       G.snd.say(k === 2 ? 'v_draw2' : 'v_draw4') || [392, 523, 659, 784].slice(0, k).forEach((f, i) => G.snd.tone(f, 0.15, 'triangle', 0.2, i * 0.07));
       await G.wait(G.fast ? 0 : 500);
       for (let j = 0; j < k; j++) { hands[victim].push(draw1()); G.snd.cardDraw(); render(); await G.wait(170); }

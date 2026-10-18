@@ -50,6 +50,13 @@
   G.sendState = function (s) {
     if (net.online && net.role === 'host') for (const c of net.conns.values()) if (c.open) c.send({ t: 'state', s });
   };
+  /** Emoji reactions: everybody in the room sees them for 5 seconds. */
+  G.sendEmoji = function (m) {
+    if (!net.online) return;
+    const msg = { t: 'emo', e: String(m.e).slice(0, 8), text: String(m.text || '').slice(0, 40), name: String(m.name || '').slice(0, 16), from: net.myId };
+    if (net.role === 'host') { for (const c of net.conns.values()) if (c.open) c.send(msg); }
+    else if (net.hostConn && net.hostConn.open) net.hostConn.send(msg);
+  };
   G.sendInput = function (a) {
     if (!net.online) return game && game.input && game.input(a, net.myId);
     if (net.role === 'host') return game && game.input && game.input(a, net.myId);
@@ -139,6 +146,9 @@
       hostAccept(d.a, conn.peer);
     } else if (d.t === 'input') {
       if (game && game.input) game.input(d.a, conn.peer);
+    } else if (d.t === 'emo') {
+      for (const c of net.conns.values()) if (c.open && c.peer !== conn.peer) c.send(d);
+      G.showEmoji(d.e, d.name || conn.label || 'Player', d.text, false);
     }
   }
 
@@ -161,6 +171,8 @@
       applyOrdered(d.a);
     } else if (d.t === 'state') {
       if (game && game.state) game.state(d.s);
+    } else if (d.t === 'emo') {
+      if (d.from !== net.myId) G.showEmoji(d.e, d.name || 'Player', d.text, false);
     }
   }
 

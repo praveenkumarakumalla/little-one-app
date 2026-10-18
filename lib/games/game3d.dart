@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
+import '../chat.dart';
 import '../store.dart';
 
 /// Hosts the real-3D games (three.js, bundled in assets/games3d – works offline).
@@ -37,7 +38,8 @@ class _Game3DPageState extends State<Game3DPage> {
   Future<void> _start() async {
     if (started) return;
     started = true;
-    await w.runJavaScript('startGame(${jsonEncode(jsonEncode(widget.cfg))})');
+    final cfg = {...widget.cfg, 'me': Chat.i.myName.isEmpty ? 'Me' : Chat.i.myName};
+    await w.runJavaScript('startGame(${jsonEncode(jsonEncode(cfg))})');
   }
 
   void _msg(String m) {

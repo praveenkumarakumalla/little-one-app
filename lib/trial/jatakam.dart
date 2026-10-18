@@ -68,7 +68,7 @@ class JatakamTab extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: i + 1 == c.pada ? K.indigo : Colors.white,
                           borderRadius: BorderRadius.circular(18),
-                          boxShadow: [BoxShadow(color: (i + 1 == c.pada ? K.deep : const Color(0xFFE2B5C4)).withValues(alpha: 0.45), blurRadius: 10, offset: const Offset(0, 5))],
+                          boxShadow: [BoxShadow(color: (i + 1 == c.pada ? K.deep : const Color(0xFFD8CBF2)).withValues(alpha: 0.45), blurRadius: 10, offset: const Offset(0, 5))],
                         ),
                         child: Column(children: [
                           Text(K.te ? lettersTe[i] : letters[i], style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: i + 1 == c.pada ? Colors.white : K.ink)),
@@ -189,7 +189,7 @@ class _SouthChart extends StatelessWidget {
                         ? const SizedBox()
                         : Container(
                             margin: const EdgeInsets.all(2.5),
-                            decoration: BoxDecoration(color: r == c.rasi ? K.pinkSoft : Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFF2D9DF))),
+                            decoration: BoxDecoration(color: r == c.rasi ? K.pinkSoft : Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE6DCF5))),
                             padding: const EdgeInsets.all(4),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text(K.te ? Astro.rasiTe[r] : Astro.rasiShort[r], maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9, color: K.muted)),

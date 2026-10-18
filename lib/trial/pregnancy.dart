@@ -328,7 +328,7 @@ class _PregCareState extends State<PregCare> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: cStart == null ? K.pink : K.bad,
-              boxShadow: [BoxShadow(color: (cStart == null ? const Color(0xFFD9A2B4) : K.bad).withValues(alpha: 0.5), blurRadius: 30, offset: const Offset(0, 14))],
+              boxShadow: [BoxShadow(color: (cStart == null ? const Color(0xFFC9B6EE) : K.bad).withValues(alpha: 0.5), blurRadius: 30, offset: const Offset(0, 14))],
               border: Border.all(color: Colors.white, width: 4),
             ),
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [

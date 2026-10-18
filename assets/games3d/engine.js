@@ -783,3 +783,89 @@ G.$('sound').onclick = () => {
 };
 G.$('exitWin').onclick = () => G.post('exit');
 
+
+// ───────────── live emoji reactions (tease each other while playing!) ─────────────
+(function emojis() {
+  const EMO = ['😜', '😂', '🤪', '😎', '🔥', '😈', '🤡', '🙈', '😤', '🥱', '👀', '💪', '🐢', '🏆', '😭', '💩', '😘', '🥳', '🤯', '👻'];
+  const TAUNTS = [
+    ['🐢', 'Too slow!', 'నెమ్మదిగా ఆడుతున్నావ్!'], ['😂', 'Ha ha ha!', 'హ హ హ!'], ['💪', 'Bring it on!', 'రా చూసుకుందాం!'],
+    ['😎', 'Watch me win!', 'నేనే గెలుస్తా!'], ['🙈', 'Oops!', 'అయ్యో!'], ['😈', 'Revenge time!', 'ప్రతీకారం!'],
+  ];
+  const st = document.createElement('style');
+  st.textContent = `
+  #emoPanel { position: fixed; right: 10px; top: calc(env(safe-area-inset-top) + 62px); z-index: 11; display: none; width: min(320px, calc(100vw - 20px));
+    background: linear-gradient(#fffbf6, #f3ecfd); border-radius: 26px; padding: 12px; box-shadow: 0 8px 0 #d9cdf2, 0 18px 40px rgba(60,30,90,.35); animation: pop .25s cubic-bezier(.2,1.6,.4,1); }
+  #emoPanel.show { display: block; }
+  #emoPanel .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  #emoPanel .e { border: none; background: #fff; border-radius: 16px; font-size: 30px; height: 50px; box-shadow: 0 3px 0 #e6dcf7; }
+  #emoPanel .e:active { transform: translateY(3px); box-shadow: none; }
+  #emoPanel .taunts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  #emoPanel .t { border: none; border-radius: 14px; padding: 7px 10px; font-weight: 800; font-size: 13px; color: #4e3b5c; background: #e9defb; box-shadow: 0 3px 0 #cdbdf0; }
+  .flyEmo { position: fixed; z-index: 12; pointer-events: none; display: flex; flex-direction: column; align-items: center; animation: emoFly 5s cubic-bezier(.2,.8,.3,1) forwards; }
+  .flyEmo .big { font-size: 84px; filter: drop-shadow(0 6px 10px rgba(0,0,0,.35)); animation: emoWob .6s ease-in-out infinite alternate; }
+  .flyEmo .who { margin-top: -4px; background: #fffbf6; color: #4e3b5c; font-weight: 900; font-size: 13px; padding: 4px 10px; border-radius: 12px; box-shadow: 0 3px 0 #d9cdf2; white-space: nowrap; max-width: 70vw; overflow: hidden; text-overflow: ellipsis; }
+  .miniEmo { position: fixed; z-index: 11; pointer-events: none; font-size: 30px; animation: emoMini 2.4s ease-out forwards; }
+  @keyframes emoFly { 0% { transform: translate(-50%, 40px) scale(.2); opacity: 0; } 8% { transform: translate(-50%, 0) scale(1.25); opacity: 1; } 14% { transform: translate(-50%, -10px) scale(1); }
+    85% { opacity: 1; } 100% { transform: translate(-50%, -34vh) scale(.9); opacity: 0; } }
+  @keyframes emoWob { from { transform: rotate(-12deg); } to { transform: rotate(12deg) scale(1.08); } }
+  @keyframes emoMini { 0% { transform: translate(0,0) scale(.4); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(1.1) rotate(var(--r)); opacity: 0; } }
+  `;
+  document.head.appendChild(st);
+  const panel = document.createElement('div');
+  panel.id = 'emoPanel';
+  const te = () => (G.cfg && G.cfg.lang === 'te');
+  panel.innerHTML = '<div class="grid">' + EMO.map((e) => `<button class="e">${e}</button>`).join('') + '</div><div class="taunts"></div>';
+  document.body.appendChild(panel);
+  const fillTaunts = () => {
+    panel.querySelector('.taunts').innerHTML = TAUNTS.map((t, i) => `<button class="t" data-i="${i}">${t[0]} ${te() ? t[2] : t[1]}</button>`).join('');
+    panel.querySelectorAll('.t').forEach((b) => (b.onclick = () => send(TAUNTS[+b.dataset.i][0], te() ? TAUNTS[+b.dataset.i][2] : TAUNTS[+b.dataset.i][1])));
+  };
+  panel.querySelectorAll('.e').forEach((b) => (b.onclick = () => send(b.textContent, '')));
+  let last = 0;
+  function send(e, text) {
+    const now = Date.now();
+    if (now - last < 700) return; // no spamming
+    last = now;
+    panel.classList.remove('show');
+    const name = (G.net && G.net.online ? G.net.name : (G.cfg && G.cfg.me)) || 'Me';
+    G.showEmoji(e, name, text, true);
+    if (G.sendEmoji) G.sendEmoji({ e, text, name });
+  }
+  const btn = document.getElementById('emo');
+  if (btn) btn.onclick = () => { fillTaunts(); panel.classList.toggle('show'); G.haptic('light'); };
+  document.addEventListener('pointerdown', (ev) => { if (!panel.contains(ev.target) && ev.target !== btn) panel.classList.remove('show'); }, true);
+
+  /** Show a big floating emoji for 5 seconds, with a little burst of smaller ones. */
+  G.showEmoji = function (e, name, text, mine) {
+    const x = mine ? 30 + Math.random() * 14 : 56 + Math.random() * 16;
+    const d = document.createElement('div');
+    d.className = 'flyEmo';
+    d.style.left = x + '%';
+    d.style.top = '52%';
+    d.innerHTML = `<div class="big">${e}</div><div class="who"></div>`;
+    d.querySelector('.who').textContent = text ? `${name}: ${text}` : name;
+    document.body.appendChild(d);
+    setTimeout(() => d.remove(), 5100);
+    for (let i = 0; i < 7; i++) {
+      const m = document.createElement('div');
+      m.className = 'miniEmo';
+      m.textContent = e;
+      m.style.left = `calc(${x}% - 15px)`;
+      m.style.top = '56%';
+      m.style.setProperty('--dx', (Math.random() * 220 - 110).toFixed(0) + 'px');
+      m.style.setProperty('--dy', (-80 - Math.random() * 220).toFixed(0) + 'px');
+      m.style.setProperty('--r', (Math.random() * 80 - 40).toFixed(0) + 'deg');
+      m.style.animationDelay = (i * 0.08).toFixed(2) + 's';
+      document.body.appendChild(m);
+      setTimeout(() => m.remove(), 2900);
+    }
+    try { Snd.play('pop', { vol: 0.7 }) || Snd.tone(880, 0.12, 'sine', 0.2, 0, 1320); } catch (err) {}
+    if (!mine) G.haptic('light');
+  };
+  /** Computer players tease too (shown on every phone the same way). */
+  G.botTease = function (p, pool) {
+    if (!p || G.fast || Math.random() > 0.6) return;
+    const list = pool || ['😜', '😈', '😂', '😎', '🤪'];
+    setTimeout(() => G.showEmoji(list[Math.floor(Math.random() * list.length)], p.name, '', false), 500);
+  };
+})();

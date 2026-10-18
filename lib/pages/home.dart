@@ -25,12 +25,12 @@ class _Pal {
 _Pal _pal(BuildContext c, String name) {
   final dark = Theme.of(c).brightness == Brightness.dark;
   const light = {
-    'rose': _Pal(Color(0xFFFDE4EA), Color(0xFFFAD3DE), Color(0xFF5A3D4B)),
-    'lilac': _Pal(Color(0xFFE0789C), Color(0xFFF09AB5), Color(0xFFFFFFFF)),
-    'mint': _Pal(Color(0xFFFFFBF6), Color(0xFFFFF0E3), Color(0xFF5A3D4B)),
-    'peach': _Pal(Color(0xFFFFE3D3), Color(0xFFFFD2BF), Color(0xFF6B3B33)),
-    'sky': _Pal(Color(0xFFF3E6FA), Color(0xFFEBD9F6), Color(0xFF5A3D6B)),
-    'coral': _Pal(Color(0xFFC25A80), Color(0xFFE0789C), Color(0xFFFFFFFF)),
+    'rose': _Pal(Color(0xFFF3ECFD), Color(0xFFE9DEFB), Color(0xFF4E3B5C)),
+    'lilac': _Pal(Color(0xFF9478D4), Color(0xFFAE95E6), Color(0xFFFFFFFF)),
+    'mint': _Pal(Color(0xFFFFFBF6), Color(0xFFFFF1E4), Color(0xFF4E3B5C)),
+    'peach': _Pal(Color(0xFFFFF0E2), Color(0xFFFCE5D6), Color(0xFF5A4152)),
+    'sky': _Pal(Color(0xFFE6DAFB), Color(0xFFDACCF7), Color(0xFF4E3B5C)),
+    'coral': _Pal(Color(0xFF6F55B0), Color(0xFF9478D4), Color(0xFFFFFFFF)),
   };
   const night = light; // the clay theme is light only
   return (dark ? night : light)[name]!;
@@ -217,7 +217,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.65), borderRadius: BorderRadius.circular(20)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (dot != null) ...[Container(width: 8, height: 8, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)), const SizedBox(width: 6)],
-          Text(t, style: const TextStyle(color: Color(0xFF5A3D4B), fontWeight: FontWeight.w700, fontSize: 13)),
+          Text(t, style: const TextStyle(color: Color(0xFF4E3B5C), fontWeight: FontWeight.w700, fontSize: 13)),
         ]),
       );
 
@@ -614,13 +614,13 @@ class _GlowButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ClayButton(
         onTap: onTap,
-        color: const Color(0xFFE0789C),
-        color2: const Color(0xFFF09AB5),
+        color: const Color(0xFF9478D4),
+        color2: const Color(0xFFAE95E6),
         radius: 22,
         depth: 7,
         padding: const EdgeInsets.symmetric(vertical: 13),
         child: Column(children: [
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900, shadows: [Shadow(color: Color(0x55C25A80), offset: Offset(0, 1.5), blurRadius: 2)])),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900, shadows: [Shadow(color: Color(0x556F55B0), offset: Offset(0, 1.5), blurRadius: 2)])),
           Text(sub, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
         ]),
       );

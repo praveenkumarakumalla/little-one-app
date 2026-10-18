@@ -166,7 +166,7 @@ class ClayPill extends StatelessWidget {
         depth: 3,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
         height: 24,
-        child: Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF5A3D4B))),
+        child: Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF4E3B5C))),
       );
 }
 
