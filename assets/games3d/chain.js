@@ -2,7 +2,7 @@
  * neighbours, taking them over. Chains of bursts can flip the whole board! 2–4 players, computer, online. */
 'use strict';
 (function () {
-  const COLS = 6, CELL = 1.25;
+  const COLS = 8, CELL = 1.25;
   let ROWS = 10;
   const PCOL = ['#ff5c8a', '#7c5cff', '#22b8a5', '#ffa31a'];
   const PNAME = ['Pink', 'Violet', 'Teal', 'Mango'];
@@ -28,7 +28,7 @@
     const a = window.innerWidth / window.innerHeight;
     const visH = (COLS * CELL) / a; // world units visible top to bottom
     const avail = visH * (window.innerHeight - HUD_TOP - HUD_BOTTOM) / window.innerHeight;
-    return Math.max(8, Math.min(14, Math.floor(avail / CELL)));
+    return Math.max(10, Math.min(18, Math.floor(avail / CELL)));
   }
   /** Look straight down; board edge to edge across the width, all rows between the HUD bars. */
   function fitView() {
