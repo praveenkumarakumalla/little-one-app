@@ -9,7 +9,6 @@ on:
       - 'tool/trial/**'
       - 'tool/guides/**'
       - '.github/workflows/trial.yml'
-      - 'flutter_launcher_icons-trial.yaml'
   workflow_dispatch:
 
 permissions:

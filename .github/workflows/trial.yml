@@ -45,7 +45,7 @@ jobs:
         run: flutter pub get
 
       - name: App icon
-        run: dart run flutter_launcher_icons -f flutter_launcher_icons-trial.yaml
+        run: dart run flutter_launcher_icons -f tool/trial/icons.yaml
 
       - name: Check code
         run: |
