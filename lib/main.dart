@@ -20,6 +20,7 @@ import 'pages/jatakam.dart';
 import 'pages/memories.dart';
 import 'pages/songs.dart';
 import 'store.dart';
+import 'ui_clay.dart';
 import 'voice.dart';
 import 'watch.dart';
 
@@ -43,44 +44,10 @@ Future<void> main() async {
   runApp(const LittleOneApp());
 }
 
-const pink = Color(0xFFEE5D8E);
+const pink = Color(0xFF4B3BA8); // the app's main colour (clay indigo)
 
 class LittleOneApp extends StatelessWidget {
   const LittleOneApp({super.key});
-
-  ThemeData _theme(Brightness b) {
-    final cs = ColorScheme.fromSeed(seedColor: pink, brightness: b);
-    return ThemeData(
-      colorScheme: cs,
-      useMaterial3: true,
-      scaffoldBackgroundColor: b == Brightness.light ? const Color(0xFFFCEAF2) : const Color(0xFF1A1220),
-      cardTheme: CardThemeData(
-        elevation: 5,
-        shadowColor: b == Brightness.light ? const Color(0x66E9A0BC) : Colors.black54,
-        surfaceTintColor: Colors.transparent,
-        color: b == Brightness.light ? Colors.white : const Color(0xFF251A2C),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: b == Brightness.light ? Colors.white : Colors.white10, width: 1.5)),
-        margin: const EdgeInsets.symmetric(vertical: 8),
-      ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(elevation: 4, shadowColor: const Color(0x99D04477), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)), padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14)),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)), side: BorderSide(color: cs.primary.withValues(alpha: 0.4), width: 1.5)),
-      ),
-      chipTheme: ChipThemeData(elevation: 2, pressElevation: 0, shadowColor: const Color(0x55E9A0BC), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-      navigationBarTheme: NavigationBarThemeData(
-        elevation: 10,
-        shadowColor: const Color(0x66E9A0BC),
-        backgroundColor: b == Brightness.light ? Colors.white : const Color(0xFF231828),
-        surfaceTintColor: Colors.transparent,
-        indicatorColor: b == Brightness.light ? const Color(0xFFFFD9E6) : const Color(0xFF4A2338),
-        indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-      appBarTheme: AppBarTheme(backgroundColor: Colors.transparent, surfaceTintColor: Colors.transparent, titleTextStyle: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: cs.onSurface)),
-      pageTransitionsTheme: const PageTransitionsTheme(builders: {TargetPlatform.android: ZoomPageTransitionsBuilder()}),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,8 +55,8 @@ class LittleOneApp extends StatelessWidget {
       title: 'Little One',
       navigatorKey: navKey,
       debugShowCheckedModeBanner: false,
-      theme: _theme(Brightness.light),
-      darkTheme: _theme(Brightness.dark),
+      theme: clayTheme(),
+      themeMode: ThemeMode.light,
       home: const Shell(),
     );
   }
@@ -219,23 +186,51 @@ class _ShellState extends State<Shell> {
     final pages = [const HomePage(), const MemoriesPage(), const ChatPage(), const GamesPage(), const SongsPage(), const HealthPage(), const JatakamPage()];
     return Scaffold(
       body: AnimatedSwitcher(duration: const Duration(milliseconds: 250), child: KeyedSubtree(key: ValueKey(tab), child: pages[tab])),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: tab,
-        onDestinationSelected: (i) => setState(() => tab = i),
-        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
-        destinations: [
-          const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-          const NavigationDestination(icon: Icon(Icons.photo_library_outlined), selectedIcon: Icon(Icons.photo_library), label: 'Memories'),
-          NavigationDestination(
-            icon: ListenableBuilder(listenable: Chat.i, builder: (_, __) => Badge(isLabelVisible: Chat.i.unread > 0, label: Text('${Chat.i.unread}'), child: const Icon(Icons.chat_bubble_outline))),
-            selectedIcon: const Icon(Icons.chat_bubble),
-            label: 'Chat',
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+          child: ClayBox(
+            radius: 28,
+            height: 70,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Row(children: [
+              _nav(0, Icons.home_rounded, 'Home'),
+              _nav(1, Icons.photo_library_rounded, 'Memories'),
+              _nav(2, Icons.forum_rounded, 'Chat'),
+              _nav(3, Icons.sports_esports_rounded, 'Games'),
+              _nav(4, Icons.music_note_rounded, 'Songs'),
+              _nav(5, Icons.favorite_rounded, 'Health'),
+              _nav(6, Icons.auto_awesome, 'Jatakam'),
+            ]),
           ),
-          const NavigationDestination(icon: Icon(Icons.sports_esports_outlined), selectedIcon: Icon(Icons.sports_esports), label: 'Games'),
-          const NavigationDestination(icon: Icon(Icons.music_note_outlined), selectedIcon: Icon(Icons.music_note), label: 'Songs'),
-          const NavigationDestination(icon: Icon(Icons.favorite_outline), selectedIcon: Icon(Icons.favorite), label: 'Health'),
-          const NavigationDestination(icon: Icon(Icons.nightlight_outlined), selectedIcon: Icon(Icons.nightlight), label: 'Jatakam'),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _nav(int i, IconData icon, String label) {
+    final on = tab == i;
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => setState(() => tab = i),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          ListenableBuilder(
+            listenable: Chat.i,
+            builder: (_, __) => Badge(
+              isLabelVisible: i == 2 && Chat.i.unread > 0,
+              label: Text('${Chat.i.unread}'),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: on ? K.pinkSoft : Colors.transparent, borderRadius: BorderRadius.circular(14)),
+                child: Icon(icon, size: 22, color: on ? K.indigo : K.muted),
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(label, maxLines: 1, overflow: TextOverflow.fade, softWrap: false, style: TextStyle(fontSize: 9.5, fontWeight: on ? FontWeight.w700 : FontWeight.w500, color: on ? K.indigo : K.muted)),
+        ]),
       ),
     );
   }

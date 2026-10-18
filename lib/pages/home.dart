@@ -25,21 +25,14 @@ class _Pal {
 _Pal _pal(BuildContext c, String name) {
   final dark = Theme.of(c).brightness == Brightness.dark;
   const light = {
-    'rose': _Pal(Color(0xFFFFC3D7), Color(0xFFFFD8C9), Color(0xFF5A1F3A)),
-    'lilac': _Pal(Color(0xFFDCCBFF), Color(0xFFC8E0FF), Color(0xFF2E2563)),
-    'mint': _Pal(Color(0xFFB4EEDA), Color(0xFFD3F4C2), Color(0xFF17483A)),
-    'peach': _Pal(Color(0xFFFFD2B6), Color(0xFFFFECAE), Color(0xFF5A3416)),
-    'sky': _Pal(Color(0xFFBCE0FF), Color(0xFFD7D0FF), Color(0xFF1E3A5C)),
-    'coral': _Pal(Color(0xFFFF9FB8), Color(0xFFFFBC9C), Color(0xFF4A0E22)),
+    'rose': _Pal(Color(0xFFF6C9D6), Color(0xFFF9D9E3), Color(0xFF34277F)),
+    'lilac': _Pal(Color(0xFF4B3BA8), Color(0xFF6152C0), Color(0xFFFFFFFF)),
+    'mint': _Pal(Color(0xFFF7F5FB), Color(0xFFECE9F5), Color(0xFF2B2350)),
+    'peach': _Pal(Color(0xFFFBE3EA), Color(0xFFF7D7E2), Color(0xFF34277F)),
+    'sky': _Pal(Color(0xFFE6E1F8), Color(0xFFD9D2F2), Color(0xFF34277F)),
+    'coral': _Pal(Color(0xFF34277F), Color(0xFF4B3BA8), Color(0xFFFFFFFF)),
   };
-  const night = {
-    'rose': _Pal(Color(0xFF4A2338), Color(0xFF3A2430), Color(0xFFFFE3EE)),
-    'lilac': _Pal(Color(0xFF2E2A57), Color(0xFF253247), Color(0xFFEDE6FF)),
-    'mint': _Pal(Color(0xFF1F4537), Color(0xFF29402A), Color(0xFFDDF7EA)),
-    'peach': _Pal(Color(0xFF4F3020), Color(0xFF473A20), Color(0xFFFFEBDD)),
-    'sky': _Pal(Color(0xFF213A55), Color(0xFF2B2A52), Color(0xFFDDEEFF)),
-    'coral': _Pal(Color(0xFF7A2945), Color(0xFF6E3A28), Color(0xFFFFE8EE)),
-  };
+  const night = light; // the clay theme is light only
   return (dark ? night : light)[name]!;
 }
 
@@ -224,7 +217,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.65), borderRadius: BorderRadius.circular(20)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (dot != null) ...[Container(width: 8, height: 8, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)), const SizedBox(width: 6)],
-          Text(t, style: const TextStyle(color: Color(0xFF4A2338), fontWeight: FontWeight.w800, fontSize: 13)),
+          Text(t, style: const TextStyle(color: Color(0xFF34277F), fontWeight: FontWeight.w700, fontSize: 13)),
         ]),
       );
 
@@ -621,13 +614,13 @@ class _GlowButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ClayButton(
         onTap: onTap,
-        color: const Color(0xFFF2668B),
-        color2: const Color(0xFFFF8E72),
+        color: const Color(0xFF4B3BA8),
+        color2: const Color(0xFF6152C0),
         radius: 22,
         depth: 7,
         padding: const EdgeInsets.symmetric(vertical: 13),
         child: Column(children: [
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900, shadows: [Shadow(color: Color(0x55A0254A), offset: Offset(0, 1.5), blurRadius: 2)])),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900, shadows: [Shadow(color: Color(0x5534277F), offset: Offset(0, 1.5), blurRadius: 2)])),
           Text(sub, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
         ]),
       );
