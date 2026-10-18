@@ -13,6 +13,11 @@ import 'store.dart';
 /// and opens Android's installer (Android always asks for one "Install" tap).
 class Updater {
   static const _api = 'https://api.github.com/repos/praveenkumarakumalla/little-one-app/releases/latest';
+  static const _list = 'https://api.github.com/repos/praveenkumarakumalla/little-one-app/releases?per_page=30';
+
+  /// '' = the family app; 'trial' = the new trial app (its releases are tagged trial-1.0.N).
+  static String channel = '';
+  static String get _apk => channel == 'trial' ? 'LittleOneTrial.apk' : 'LittleOne.apk';
   static bool _running = false;
 
   /// [manual] = the user tapped "Check for updates" (always tells the result).
@@ -26,12 +31,15 @@ class Updater {
       await Store.i.setSetting('updCheck', now);
       final info = await PackageInfo.fromPlatform();
       final mine = int.tryParse(info.buildNumber) ?? 0;
-      final r = await http.get(Uri.parse(_api), headers: {'Accept': 'application/vnd.github+json'}).timeout(const Duration(seconds: 15));
+      final r = await http.get(Uri.parse(channel == 'trial' ? _list : _api), headers: {'Accept': 'application/vnd.github+json'}).timeout(const Duration(seconds: 15));
       if (r.statusCode != 200) throw 'GitHub said ${r.statusCode}';
-      final j = jsonDecode(r.body) as Map;
+      final body = jsonDecode(r.body);
+      final Map j = channel == 'trial'
+          ? (body as List).cast<Map>().firstWhere((x) => (x['tag_name'] ?? '').toString().startsWith('trial-'), orElse: () => {})
+          : body as Map;
       final tag = (j['tag_name'] ?? '').toString(); // v1.0.123
       final latest = int.tryParse(tag.split('.').last) ?? 0;
-      final asset = ((j['assets'] as List?) ?? []).cast<Map>().firstWhere((a) => a['name'] == 'LittleOne.apk', orElse: () => {});
+      final asset = ((j['assets'] as List?) ?? []).cast<Map>().firstWhere((a) => a['name'] == _apk, orElse: () => {});
       final url = asset['browser_download_url']?.toString();
       if (latest <= mine || url == null) {
         if (manual && context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('You have the latest version (1.0.$mine) ✅')));

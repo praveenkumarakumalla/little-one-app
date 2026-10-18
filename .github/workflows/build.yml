@@ -3,6 +3,13 @@ name: Build Android app
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'lib/trial/**'
+      - 'assets/trial/**'
+      - 'tool/trial/**'
+      - 'tool/guides/**'
+      - '.github/workflows/trial.yml'
+      - 'flutter_launcher_icons-trial.yaml'
   workflow_dispatch:
 
 permissions:
@@ -42,6 +49,7 @@ jobs:
       - name: Check code
         run: |
           set -o pipefail
+          rm -rf lib/trial  # the trial app is built by trial.yml
           flutter analyze --no-fatal-infos --no-fatal-warnings lib 2>&1 | tee analyze.log || {
             grep -E "^ *error" analyze.log | head -40 | while IFS= read -r l; do echo "::error title=analyze::$l"; done
             exit 1
