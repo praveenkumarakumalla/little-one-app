@@ -204,6 +204,8 @@
   function scored(side, w) {
     G.snd.point(players.some((p, i) => teamOf(i) === side && G.mine(p)));
     G.toast(`+${w} ${teamName(side)} 🐑`, 900);
+    const bot = players.find((p, i) => teamOf(i) === side && p.bot);
+    if (bot && w >= 3) G.botTease(bot, ['😈', '😂', '💪', '🐑']);
   }
 
   const teamName = (side) => {

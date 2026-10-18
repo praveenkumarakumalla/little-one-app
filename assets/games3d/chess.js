@@ -369,6 +369,7 @@
       await G.wait(180 + dist * 50);
       G.snd.take();
       G.haptic('medium');
+      { const mover = players[seatOf(posBefore.side)]; if (mover && mover.bot) G.botTease(mover, ['😎', '😈', '😂', '🤪']); }
       toGrave(victim, vVal);
     }
     await hop;

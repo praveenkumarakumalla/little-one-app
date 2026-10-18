@@ -244,6 +244,7 @@
       if (LADDERS[at]) {
         G.toast('🪜 Ladder! Climb up!');
         G.snd.ladder();
+        if (cur().bot) G.botTease(cur(), ['😎', '🥳', '😜', '💪']);
         G.haptic('medium');
         const from = m.position.clone(), to = cellPos(LADDERS[at], 0);
         await G.tween(900, (k) => { m.position.lerpVectors(from, to, k); m.position.y = 0.15 + Math.sin(k * Math.PI) * 0.4; }, G.ease.inOut);
