@@ -24,6 +24,8 @@ class _Game3DPageState extends State<Game3DPage> {
   @override
   void initState() {
     super.initState();
+    // games use the whole screen: hide the status bar and the navigation bar (swipe to show them)
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     w = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF2A1D17))
@@ -62,12 +64,18 @@ class _Game3DPageState extends State<Game3DPage> {
   }
 
   @override
+  void dispose() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: const Color(0xFF2A1D17),
-        body: SafeArea(bottom: false, child: WebViewWidget(controller: w)),
+        body: WebViewWidget(controller: w),
       ),
     );
   }

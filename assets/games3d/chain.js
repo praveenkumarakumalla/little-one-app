@@ -2,20 +2,46 @@
  * neighbours, taking them over. Chains of bursts can flip the whole board! 2–4 players, computer, online. */
 'use strict';
 (function () {
-  const COLS = 6, ROWS = 9, CELL = 1.25;
+  const COLS = 6, CELL = 1.25;
+  let ROWS = 10;
   const PCOL = ['#ff5c8a', '#7c5cff', '#22b8a5', '#ffa31a'];
   const PNAME = ['Pink', 'Violet', 'Teal', 'Mango'];
-  const N = COLS * ROWS;
+  let N, NB, CM; // cells, neighbours, how many bubbles a cell holds before it bursts
   const rc = (i) => [Math.floor(i / COLS), i % COLS];
-  const NB = Array.from({ length: N }, (_, i) => {
-    const [r, c] = rc(i), out = [];
-    if (r > 0) out.push(i - COLS);
-    if (r < ROWS - 1) out.push(i + COLS);
-    if (c > 0) out.push(i - 1);
-    if (c < COLS - 1) out.push(i + 1);
-    return out;
-  });
-  const CM = NB.map((n) => n.length); // how many bubbles a cell holds before it bursts
+  function setGrid(rows) {
+    ROWS = rows;
+    N = COLS * ROWS;
+    NB = Array.from({ length: N }, (_, i) => {
+      const [r, c] = rc(i), out = [];
+      if (r > 0) out.push(i - COLS);
+      if (r < ROWS - 1) out.push(i + COLS);
+      if (c > 0) out.push(i - 1);
+      if (c < COLS - 1) out.push(i + 1);
+      return out;
+    });
+    CM = NB.map((n) => n.length);
+  }
+  // screen space taken by the top bar + player chips, and by the status line at the bottom
+  const HUD_TOP = 112, HUD_BOTTOM = 64;
+  /** As many rows as fit this screen when the board fills its whole width. */
+  function rowsForScreen() {
+    const a = window.innerWidth / window.innerHeight;
+    const visH = (COLS * CELL) / a; // world units visible top to bottom
+    const avail = visH * (window.innerHeight - HUD_TOP - HUD_BOTTOM) / window.innerHeight;
+    return Math.max(8, Math.min(14, Math.floor(avail / CELL)));
+  }
+  /** Look straight down; board edge to edge across the width, all rows between the HUD bars. */
+  function fitView() {
+    const a = window.innerWidth / window.innerHeight, vf = THREE.MathUtils.degToRad(G.camera.fov), t = Math.tan(vf / 2);
+    const H = window.innerHeight, availFrac = (H - HUD_TOP - HUD_BOTTOM) / H;
+    const rW = (COLS * CELL + 0.12) / (2 * t * a);
+    const rH = (ROWS * CELL + 0.12) / (2 * t * availFrac);
+    const r = Math.max(rW, rH) + 0.42; // + top of the bubbles
+    const visH = 2 * r * t;
+    const shift = ((HUD_TOP - HUD_BOTTOM) / 2 / H) * visH; // centre the board between the bars
+    G.setView(new THREE.Vector3(0, 0.42, -shift), 0.001, r, 0);
+  }
+  setGrid(10);
 
   let players = [], cnt = [], own = [], turn = 0, step = 0, moves = 0, alive = [], over = false, busy = false;
   let root, cellGroups = [], gridMat, mats = [], orbGeo, sparkGeo;
@@ -28,11 +54,11 @@
     if (root) G.scene.remove(root);
     root = new THREE.Group();
     G.scene.add(root);
-    G.setBackground('#f6efff', '#b89be8');
-    const floor = G.addTable('#f6ece0', 80);
+    G.setBackground('#efe6fb', '#efe6fb');
+    const floor = G.addTable('#efe6fb', 80);
     floor.position.y = -0.4;
     root.add(floor);
-    const W = COLS * CELL + 0.7, D = ROWS * CELL + 0.7;
+    const W = COLS * CELL + 0.3, D = ROWS * CELL + 0.3;
     const base = new THREE.Mesh(G.roundedBox(W, 0.5, D, 0.22), new THREE.MeshPhysicalMaterial({ color: 0xfffbf6, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.2 }));
     base.position.y = -0.05;
     G.shadowed(base);
@@ -318,24 +344,24 @@
   }
 
   window.Chain3D = {
+    _fit: () => fitView(),
     title: 'Chain Reaction', minPlayers: 2, maxPlayers: 4, colors: PCOL,
     init() {
       G.$('title').textContent = '💥 Chain Reaction';
       G.$('actions').innerHTML = '';
       G.$('roll').style.display = 'none';
+      G.$('vig').style.display = 'none'; // keep the board bright right to the edges
       G.onTap = tap;
+      setGrid(rowsForScreen());
       build();
-      // fill the screen: fit the board's width, but make sure all rows (plus the HUD) stay visible
-      const ph = 0.22, vf = THREE.MathUtils.degToRad(G.camera.fov);
-      const rW = G.fitRadius(COLS * CELL + 0.9, ph) * 0.93;
-      const rH = ((ROWS * CELL + 0.9) / 2) / Math.tan(vf / 2) * 1.32;
-      G.setView(new THREE.Vector3(0, 0, 0.35), ph, Math.max(rW, rH), 0);
-      G.orbit.minR = 8;
-      G.orbit.maxR = 30;
+      fitView();
+      G.orbit.minR = 6;
+      G.orbit.maxR = 80;
     },
-    makeSetup(list) { return { players: list.slice(0, 4) }; },
+    makeSetup(list) { return { players: list.slice(0, 4), rows: rowsForScreen() }; },
     begin(s) {
       players = s.players;
+      if (s.rows && s.rows !== ROWS) { setGrid(s.rows); build(); fitView(); }
       restart();
       G.status(`<span style="color:${PCOL[0]}">●</span> ${players[0].name} starts – tap any cell`);
     },
@@ -351,3 +377,5 @@
     },
   };
 })();
+
+window.addEventListener('resize', () => { if (window.Chain3D && G.game === window.Chain3D) setTimeout(() => window.Chain3D._fit && window.Chain3D._fit(), 50); });
