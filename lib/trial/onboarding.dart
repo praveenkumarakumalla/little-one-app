@@ -24,6 +24,8 @@ class _OnboardingState extends State<Onboarding> {
   TimeOfDay? time;
   int city = 0;
   String role = 'Amma';
+  String stage = 'born';
+  DateTime? due;
 
   static const roles = [
     ('Amma', 'అమ్మ'), ('Nanna', 'నాన్న'), ('Ammamma', 'అమ్మమ్మ'), ('Nanamma', 'నానమ్మ'),
@@ -34,7 +36,11 @@ class _OnboardingState extends State<Onboarding> {
   String t(String en, String tel) => te ? tel : en;
 
   void next() {
-    if (step == 1 && (baby.text.trim().isEmpty || date == null)) {
+    if (step == 1 && stage == 'pregnant' && due == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('Please add the due date or last period date', 'దయచేసి డ్యూ డేట్ లేదా చివరి పీరియడ్ తేదీ ఇవ్వండి'))));
+      return;
+    }
+    if (step == 1 && stage == 'born' && (baby.text.trim().isEmpty || date == null)) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('Please add the baby\'s name and birth date', 'దయచేసి బిడ్డ పేరు, పుట్టిన తేదీ ఇవ్వండి'))));
       return;
     }
@@ -50,7 +56,18 @@ class _OnboardingState extends State<Onboarding> {
     final s = Store.i;
     final c = cities[city];
     final tm = time ?? const TimeOfDay(hour: 12, minute: 0);
+    if (stage == 'pregnant') {
+      await s.setProfile({
+        'name': baby.text.trim().isEmpty ? t('Bujji', 'బుజ్జి') : baby.text.trim(),
+        'stage': 'pregnant',
+        'dueDate': '${due!.year}-${due!.month.toString().padLeft(2, '0')}-${due!.day.toString().padLeft(2, '0')}',
+        'place': c.$1,
+        'lat': c.$2,
+        'lon': c.$3,
+      });
+    } else {
     await s.setProfile({
+      'stage': 'born',
       'name': baby.text.trim(),
       'gender': gender,
       'birthDate': '${date!.year}-${date!.month.toString().padLeft(2, '0')}-${date!.day.toString().padLeft(2, '0')}',
@@ -60,6 +77,7 @@ class _OnboardingState extends State<Onboarding> {
       'lat': c.$2,
       'lon': c.$3,
     });
+    }
     s.d['events'] = <dynamic>[]; // no family-specific events in a fresh app
     await s.setSetting('tLang', lang);
     await s.setSetting('tRole', role);
@@ -150,7 +168,14 @@ class _OnboardingState extends State<Onboarding> {
     String two(int n) => n.toString().padLeft(2, '0');
     return ListView(padding: const EdgeInsets.all(24), children: [
       Text(t('About your baby', 'మీ బిడ్డ గురించి'), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 14),
+      Row(children: [
+        Expanded(child: _stage('pregnant', t('Expecting', 'గర్భిణి'), Icons.pregnant_woman)),
+        const SizedBox(width: 14),
+        Expanded(child: _stage('born', t('Baby is born', 'బిడ్డ పుట్టింది'), Icons.child_friendly)),
+      ]),
       const SizedBox(height: 16),
+      if (stage == 'pregnant') ..._expecting() else ...[
       TextField(controller: baby, textCapitalization: TextCapitalization.words, decoration: InputDecoration(hintText: t('Baby\'s name (or pet name)', 'బిడ్డ పేరు (లేదా ముద్దు పేరు)'), prefixIcon: const Icon(Icons.child_care))),
       const SizedBox(height: 16),
       Row(children: [
@@ -204,7 +229,69 @@ class _OnboardingState extends State<Onboarding> {
       ),
       const SizedBox(height: 8),
       Text(t('Birth place: pick the nearest city.', 'పుట్టిన ఊరు: దగ్గరలోని నగరం ఎంచుకోండి.'), style: const TextStyle(color: K.muted, fontSize: 12)),
+      ],
     ]);
+  }
+
+  Widget _stage(String v, String label, IconData icon) {
+    final on = stage == v;
+    return ClayBox(
+      onTap: () => setState(() => stage = v),
+      color: on ? K.pink : K.card,
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      child: Column(children: [Icon(icon, color: K.indigo, size: 30), const SizedBox(height: 4), Text(label, style: const TextStyle(fontWeight: FontWeight.w700))]),
+    );
+  }
+
+  List<Widget> _expecting() {
+    String fmt(DateTime d) => '${d.day}-${d.month.toString().padLeft(2, '0')}-${d.year}';
+    return [
+      TextField(controller: baby, textCapitalization: TextCapitalization.words, decoration: InputDecoration(hintText: t('A pet name for the baby (e.g. Bujji)', 'బిడ్డకు ముద్దు పేరు (ఉదా. బుజ్జి)'), prefixIcon: const Icon(Icons.favorite))),
+      const SizedBox(height: 14),
+      ClayBox(
+        onTap: () async {
+          final now = DateTime.now();
+          final d = await showDatePicker(context: context, firstDate: now.subtract(const Duration(days: 14)), lastDate: now.add(const Duration(days: 290)), initialDate: due ?? now.add(const Duration(days: 150)), helpText: t('Due date', 'డ్యూ డేట్'));
+          if (d != null) setState(() => due = d);
+        },
+        child: Row(children: [
+          const Icon(Icons.event, color: K.indigo),
+          const SizedBox(width: 12),
+          Expanded(child: Text(due == null ? t('Due date', 'డ్యూ డేట్') : '${t('Due', 'డ్యూ')}: ${fmt(due!)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
+          const Icon(Icons.chevron_right),
+        ]),
+      ),
+      const SizedBox(height: 10),
+      TextButton.icon(
+        onPressed: () async {
+          final now = DateTime.now();
+          final d = await showDatePicker(context: context, firstDate: now.subtract(const Duration(days: 300)), lastDate: now, initialDate: now.subtract(const Duration(days: 60)), helpText: t('First day of last period', 'చివరి పీరియడ్ మొదటి రోజు'));
+          if (d != null) setState(() => due = d.add(const Duration(days: 280)));
+        },
+        icon: const Icon(Icons.calculate),
+        label: Text(t('Don\'t know the due date? Use the last period date', 'డ్యూ డేట్ తెలియదా? చివరి పీరియడ్ తేదీతో లెక్కించండి')),
+      ),
+      const SizedBox(height: 10),
+      ClayBox(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+        child: Row(children: [
+          const Icon(Icons.local_hospital, color: K.indigo),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DropdownButton<int>(
+              value: city,
+              isExpanded: true,
+              underline: const SizedBox(),
+              borderRadius: BorderRadius.circular(20),
+              items: [for (var i = 0; i < cities.length; i++) DropdownMenuItem(value: i, child: Text(cities[i].$1))],
+              onChanged: (v) => setState(() => city = v ?? 0),
+            ),
+          ),
+        ]),
+      ),
+      const SizedBox(height: 8),
+      Text(t('City where the baby will be born (for the jatakam).', 'బిడ్డ పుట్టబోయే ఊరు (జాతకం కోసం).'), style: const TextStyle(color: K.muted, fontSize: 12)),
+    ];
   }
 
   Widget _choice(String g, String label, IconData icon) {

@@ -17,6 +17,7 @@ import 'care.dart';
 import 'home.dart';
 import 'jatakam.dart';
 import 'onboarding.dart';
+import 'pregnancy.dart';
 import 'ui.dart';
 
 /// Little One – trial app (new clay design, for any family).
@@ -145,7 +146,14 @@ class _TrialShellState extends State<TrialShell> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [HomeTab(goTab: (i) => setState(() => tab = i)), const CareTab(), const ChatPage(), const JatakamTab()];
+    return ListenableBuilder(listenable: Store.i, builder: (context, _) => _body(context));
+  }
+
+  Widget _body(BuildContext context) {
+    void go(int i) => setState(() => tab = i);
+    final pages = expecting
+        ? [PregHome(goTab: go), const PregCare(), const ChatPage(), const PregJatakam()]
+        : [HomeTab(goTab: go), const CareTab(), const ChatPage(), const JatakamTab()];
     return Scaffold(
       extendBody: tab != 2,
       body: IndexedStack(index: tab, children: pages),
@@ -163,7 +171,7 @@ class _TrialShellState extends State<TrialShell> {
                 child: Align(
                   heightFactor: 1,
                   child: GestureDetector(
-                    onTap: _plus,
+                    onTap: () => expecting ? setState(() => tab = 1) : _plus(),
                     child: Container(
                       width: 52,
                       height: 52,
