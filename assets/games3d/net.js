@@ -257,7 +257,7 @@
   window.startGame = function (cfg) {
     if (typeof cfg === 'string') cfg = JSON.parse(cfg);
     G.cfg = cfg;
-    game = { chess: window.Chess3D, ludo: window.Ludo3D, snakes: window.Snakes3D, uno: window.Uno3D, sheep: window.Sheep3D }[cfg.game];
+    game = { chess: window.Chess3D, ludo: window.Ludo3D, snakes: window.Snakes3D, uno: window.Uno3D, sheep: window.Sheep3D, chain: window.Chain3D }[cfg.game];
     G.game = game;
     G.$('loading').style.display = 'none';
     if (!game) return;
