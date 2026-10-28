@@ -38,6 +38,9 @@ class Talk {
     'f_song': ['అమ్మా, నాకు ఒక పాట పాడు. బాగోలేకపోయినా పర్వాలేదు, నేను చప్పట్లు కొడతా!', 'Amma, naku oka paata paadu. Bagolekapoyina parvaledu, nenu chappatlu kodata!', 'Amma, naku oka paata paadu. Bagolekapoyina parvaledu, nenu chappatlu kodata!', '🎵 అమ్మా, ఒక పాట పాడు!'],
     'f_madam': ['అందరికీ ఒక అప్‌డేట్! నేను ఈరోజు కొంచెం పెద్దయ్యా. ఇప్పటినుంచి నన్ను మేడమ్ అని పిలవండి!', 'Andariki oka update! Nenu eeroju konchem peddayya. Ippatinunchi nannu madam ani pilavandi!', 'Andariki oka update! Nenu eeroju konchem peddayya. Ippatinunchi nannu madam ani pilavandi!', '👑 నన్ను మేడమ్ అని పిలవండి!'],
     'f_fan': ['ఈ ఇంట్లో ఫ్యాన్ నా బెస్ట్ ఫ్రెండ్. నేను దాన్ని చూస్తా, అది నన్ను చూసి తిరుగుతుంది!', 'Ee intlo fan naa best friend. Nenu danni chusta, adi nannu chusi tirugutundi!', 'Ee intlo fan naa best friend. Nenu danni chusta, adi nannu chusi tirugutundi!', '🌀 ఫ్యాన్ నా బెస్ట్ ఫ్రెండ్!'],
+    'f_anna': ['అన్నయ్యా! ఏం చేస్తున్నావ్? స్కూల్ నుంచి వచ్చావా? నాకు ఏం తెచ్చావ్?', 'Annayya! Em chestunnav? School nunchi vachava? Naku em techav?', 'Annayya! Em chestunnav? School nunchi vachava? Naku em techav?', '🧒 అన్నయ్యా, నాకు ఏం తెచ్చావ్?'],
+    'f_anna_toys': ['అన్నయ్యా, నీ బొమ్మలన్నీ ఇప్పుడు నావే! షేర్ చేయడం నేర్చుకో!', 'Annayya, nee bommalanni ippudu naave! Share cheyadam nerchuko!', 'Annayya, nee bommalanni ippudu naave! Share cheyadam nerchuko!', '🧸 అన్నయ్యా, నీ బొమ్మలు నావే!'],
+    'f_anna_boss': ['అన్నయ్యా, ఈ ఇంట్లో ఇప్పుడు బాస్ ఎవరో తెలుసా? నేనే! అందరూ నా మాటే వింటారు!', 'Annayya, ee intlo ippudu boss evaro telusa? Nene! Andaru naa maate vintaru!', 'Annayya, ee intlo ippudu boss evaro telusa? Nene! Andaru naa maate vintaru!', '👑 అన్నయ్యా, ఇప్పుడు బాస్ నేనే!'],
     'ram': ['అమ్మా, నాకు జై శ్రీ రామ్ చెప్పు! జై శ్రీ రామ్!', 'अम्मा, नाकु जय श्री राम चेप्पु! जय श्री राम!', 'Amma, naku Jai Shree Ram cheppu! Jai Shree Ram!', '🙏 అమ్మా, నాకు జై శ్రీ రామ్ చెప్పు!'],
   };
 
@@ -105,6 +108,18 @@ class Talk {
       ['😂 నేను కాదా?', 'నువ్వు బెస్ట్ బెస్ట్ ఫ్రెండ్ అమ్మా!', 'r_f_fan_1'],
       ['🌀 హాయ్ చెప్పు', 'హాయ్ ఫ్యాన్! తిరుగుతూనే ఉండు!', 'r_f_fan_2'],
     ],
+    'f_anna': [
+      ['🍫 చాక్లెట్ తెచ్చా', 'యే! కానీ నాకు పళ్ళు లేవు, నువ్వే తిను, నేను చూస్తా!', 'r_f_anna_1'],
+      ['🎒 హోంవర్క్ ఉంది', 'అయ్యో! సరే, త్వరగా చేసి నాతో ఆడుకో!', 'r_f_anna_2'],
+    ],
+    'f_anna_toys': [
+      ['😂 సరే చెల్లి', 'థాంక్యూ అన్నయ్యా! నువ్వే బెస్ట్ అన్నయ్య!', 'r_f_anna_toys_1'],
+      ['😤 అస్సలు ఇవ్వను', 'అయితే అమ్మకి చెప్తా! అమ్మా!', 'r_f_anna_toys_2'],
+    ],
+    'f_anna_boss': [
+      ['😂 నిజమే', 'అయితే బాస్ ఆర్డర్: నన్ను నవ్వించు!', 'r_f_anna_boss_1'],
+      ['🙅 నేనే బాస్', 'సరే, నువ్వు పెద్ద బాస్, నేను చిన్న బాస్!', 'r_f_anna_boss_2'],
+    ],
     'ram': [
       ['🙏 జై శ్రీ రామ్!', 'జై శ్రీ రామ్! థాంక్యూ అమ్మా. గుడ్ నైట్!', 'r_ram'],
     ],
@@ -160,7 +175,7 @@ class Talk {
       var id = base;
       var lastAsk = '';
       // funny conversation lines, shuffled so each day sounds different
-      const asks = ['f_boss', 'f_diaper', 'f_serial', 'f_paper', 'f_secret', 'f_phone', 'f_looks', 'f_review', 'f_gym', 'f_song', 'f_madam', 'f_fan'];
+      const asks = ['f_boss', 'f_diaper', 'f_serial', 'f_paper', 'f_secret', 'f_phone', 'f_looks', 'f_review', 'f_gym', 'f_song', 'f_madam', 'f_fan', 'f_anna', 'f_anna_toys', 'f_anna_boss'];
       final pool = <String>[];
       for (var day = 0; day < 3; day++) {
         final d0 = DateTime(now.year, now.month, now.day + day);
