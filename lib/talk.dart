@@ -209,6 +209,11 @@ class Talk {
           } else {
             key = today.removeLast();
           }
+          // a line whose baby-voice clip isn't made yet waits; a ready one plays instead (no robot voice)
+          if (key.startsWith('f_') && !Voice.i.hasClip(key)) {
+            final ready = [...favourites, ...others].where((k) => Voice.i.hasClip(k)).toList();
+            if (ready.isNotEmpty) key = ready[r.nextInt(ready.length)];
+          }
           slots.add(MapEntry(d0.add(Duration(hours: h)), key));
         }
         slots.add(MapEntry(d0.add(const Duration(hours: 20, minutes: 30)), 'ram')); // అమ్మా, నాకు జై శ్రీ రామ్ చెప్పు!
