@@ -14,7 +14,7 @@ import 'voice.dart';
 /// (the sentences are saved as voice files on the phone and played by the alarm service).
 class Talk {
   static const base = 1000; // alarm ids 1000…1099
-  static const version = 3; // bump when the words change, to re-make the voice files
+  static const version = 4; // bump when the words change, to re-make the voice files
 
   /// key: [Telugu, Devanagari (for Hindi voice), Latin (for English voice), notification title]
   static const lines = <String, List<String>>{
@@ -26,6 +26,18 @@ class Talk {
     'pizza': ['అమ్మా, నాకు పిజ్జా కావాలి! ... అమ్మా, నాకు పిజ్జా కావాలి!', 'अम्मा, नाकु पिज़्ज़ा कावालि! ... अम्मा, नाकु पिज़्ज़ा कावालि!', 'Amma, naku pizza kavali! ... Amma, naku pizza kavali!', '🍕 అమ్మా, నాకు పిజ్జా కావాలి!'],
     'gm': ['గుడ్ మార్నింగ్ అమ్మా! లేచావా?', 'गुड मॉर्निंग अम्मा! लेचावा?', 'Good morning Amma! Lechava?', '☀️ గుడ్ మార్నింగ్ అమ్మా! లేచావా?'],
     'gn': ['గుడ్ నైట్ అమ్మా! నాకు జై శ్రీ రామ్ చెప్పి బజ్జో. జై శ్రీ రామ్!', 'गुड नाइट अम्मा! नाकु जय श्री राम चेप्पि बज्जो. जय श्री राम!', 'Good night Amma! Naku Jai Shree Ram cheppi bajjo. Jai Shree Ram!', '🌙 గుడ్ నైట్ అమ్మా! జై శ్రీ రామ్ చెప్పి బజ్జో'],
+    'f_boss': ['నాన్నా! ఆఫీస్‌లో బాస్ తిడుతున్నాడా? నాకు చెప్పు, నేను చూసుకుంటా!', 'Nanna! Office lo boss tidutunnada? Naku cheppu, nenu chusukunta!', 'Nanna! Office lo boss tidutunnada? Naku cheppu, nenu chusukunta!', '😤 నాన్నా, బాస్ తిడుతున్నాడా?'],
+    'f_diaper': ['అమ్మా, ఒక చిన్న విషయం. డైపర్ చెక్ చెయ్యి. నేను ఏమీ చెయ్యలేదు, ఊరికే అడుగుతున్నా!', 'Amma, oka chinna vishayam. Diaper check cheyyi. Nenu emi cheyyaledu, ooriki adugutunna!', 'Amma, oka chinna vishayam. Diaper check cheyyi. Nenu emi cheyyaledu, ooriki adugutunna!', '🙈 అమ్మా, డైపర్ చెక్ చెయ్యి'],
+    'f_serial': ['అమ్మమ్మా! సీరియల్ ఆపి నన్ను చూడు! నేను సీరియల్ కంటే క్యూట్!', 'Ammamma! Serial aapi nannu choodu! Nenu serial kante cute!', 'Ammamma! Serial aapi nannu choodu! Nenu serial kante cute!', '📺 అమ్మమ్మా, సీరియల్ ఆపు!'],
+    'f_paper': ['తాతయ్యా! పేపర్‌లో నా గురించి ఏమైనా వచ్చిందా? ఈ ఇంటి సెలబ్రిటీ నేనే కదా!', 'Tatayya! Paper lo naa gurinchi emaina vachinda? Ee inti celebrity nene kada!', 'Tatayya! Paper lo naa gurinchi emaina vachinda? Ee inti celebrity nene kada!', '😎 తాతయ్యా, పేపర్‌లో నేనున్నానా?'],
+    'f_secret': ['అమ్మా, ఒక సీక్రెట్ చెప్పనా? రాత్రి రెండు గంటలకు నేను లేచేది నిన్ను మిస్ అవుతున్నాననే!', 'Amma, oka secret cheppana? Ratri rendu gantalaku nenu lechedi ninnu miss avutunnanane!', 'Amma, oka secret cheppana? Ratri rendu gantalaku nenu lechedi ninnu miss avutunnanane!', '🤭 అమ్మా, ఒక సీక్రెట్!'],
+    'f_phone': ['నాన్నా! ఫోన్ కాస్త పక్కన పెట్టు, నన్ను చూడు! నేను రీల్స్ కంటే బాగుంటా!', 'Nanna! Phone kasta pakkana pettu, nannu choodu! Nenu reels kante baguntaa!', 'Nanna! Phone kasta pakkana pettu, nannu choodu! Nenu reels kante baguntaa!', '📱 నాన్నా, ఫోన్ పక్కన పెట్టు!'],
+    'f_looks': ['అమ్మా, నేను ఎవరి పోలిక? నీదా, నాన్నదా? నాకు తెలుసులే, నా అందం నాదే!', 'Amma, nenu evari polika? Needa, nannada? Naku telusule, naa andam naade!', 'Amma, nenu evari polika? Needa, nannada? Naku telusule, naa andam naade!', '😌 నేను ఎవరి పోలిక?'],
+    'f_review': ['అమ్మా, ఈరోజు పాలు టేస్ట్ సూపర్! ఫైవ్ స్టార్ రేటింగ్!', 'Amma, eeroju paalu taste super! Five star rating!', 'Amma, eeroju paalu taste super! Five star rating!', '⭐ పాలకు ఫైవ్ స్టార్!'],
+    'f_gym': ['నాన్నా, నువ్వు జిమ్‌కి వెళ్ళక్కర్లేదు. నన్ను ఎత్తుకుని తిప్పు, అదే వర్కౌట్!', 'Nanna, nuvvu gym ki vellakkarledu. Nannu ettukuni tippu, ade workout!', 'Nanna, nuvvu gym ki vellakkarledu. Nannu ettukuni tippu, ade workout!', '💪 నాన్నా, నేనే నీ జిమ్!'],
+    'f_song': ['అమ్మా, నాకు ఒక పాట పాడు. బాగోలేకపోయినా పర్వాలేదు, నేను చప్పట్లు కొడతా!', 'Amma, naku oka paata paadu. Bagolekapoyina parvaledu, nenu chappatlu kodata!', 'Amma, naku oka paata paadu. Bagolekapoyina parvaledu, nenu chappatlu kodata!', '🎵 అమ్మా, ఒక పాట పాడు!'],
+    'f_madam': ['అందరికీ ఒక అప్‌డేట్! నేను ఈరోజు కొంచెం పెద్దయ్యా. ఇప్పటినుంచి నన్ను మేడమ్ అని పిలవండి!', 'Andariki oka update! Nenu eeroju konchem peddayya. Ippatinunchi nannu madam ani pilavandi!', 'Andariki oka update! Nenu eeroju konchem peddayya. Ippatinunchi nannu madam ani pilavandi!', '👑 నన్ను మేడమ్ అని పిలవండి!'],
+    'f_fan': ['ఈ ఇంట్లో ఫ్యాన్ నా బెస్ట్ ఫ్రెండ్. నేను దాన్ని చూస్తా, అది నన్ను చూసి తిరుగుతుంది!', 'Ee intlo fan naa best friend. Nenu danni chusta, adi nannu chusi tirugutundi!', 'Ee intlo fan naa best friend. Nenu danni chusta, adi nannu chusi tirugutundi!', '🌀 ఫ్యాన్ నా బెస్ట్ ఫ్రెండ్!'],
     'ram': ['అమ్మా, నాకు జై శ్రీ రామ్ చెప్పు! జై శ్రీ రామ్!', 'अम्मा, नाकु जय श्री राम चेप्पु! जय श्री राम!', 'Amma, naku Jai Shree Ram cheppu! Jai Shree Ram!', '🙏 అమ్మా, నాకు జై శ్రీ రామ్ చెప్పు!'],
   };
 
@@ -44,6 +56,54 @@ class Talk {
     'gm': [
       ['☀️ లేచా!', 'యే! గుడ్ మార్నింగ్ అమ్మా! ఐ లవ్ యూ!', 'r_gm'],
       ['😴 ఇంకా నిద్ర', 'సరే, ఇంకొంచెం బజ్జో అమ్మా!', 'r_rest'],
+    ],
+    'f_boss': [
+      ['😂 చెప్పేస్తా', 'సరే! రేపు నేను వచ్చి గట్టిగా ఏడుస్తా. బాస్ పారిపోతాడు!', 'r_f_boss_1'],
+      ['🥰 అంతా ఓకే', 'గుడ్! త్వరగా ఇంటికి రా, నాకు ఆడుకోవాలి!', 'r_f_boss_2'],
+    ],
+    'f_diaper': [
+      ['🧷 చెక్ చేస్తా', 'హి హి, సారీ అమ్మా! నువ్వే బెస్ట్!', 'r_f_diaper_1'],
+      ['😤 మళ్ళీనా?', 'ఏం చేయను అమ్మా, పాలు ఎక్కువ తాగా కదా!', 'r_f_diaper_2'],
+    ],
+    'f_serial': [
+      ['😂 నువ్వే క్యూట్', 'కదా! ఇప్పుడు నాకు ఒక ముద్దు ఇవ్వు!', 'r_f_serial_1'],
+      ['📺 ఒక్క ఎపిసోడ్', 'సరే, కానీ యాడ్స్ వచ్చినప్పుడు నాతో ఆడుకోవాలి!', 'r_f_serial_2'],
+    ],
+    'f_paper': [
+      ['📰 ఫ్రంట్ పేజీలో!', 'హహ! ఆటోగ్రాఫ్ కావాలంటే లైన్‌లో రండి!', 'r_f_paper_1'],
+      ['😂 ఇంకా లేదు', 'పర్వాలేదు తాతయ్యా, త్వరలోనే వస్తుంది!', 'r_f_paper_2'],
+    ],
+    'f_secret': [
+      ['🥹 అయ్యో బంగారం', 'అందుకే ఈరోజు రాత్రి కూడా లేస్తా! హి హి!', 'r_f_secret_1'],
+      ['😴 ఈరోజు బజ్జో', 'ప్రామిస్ చేయను, కానీ ట్రై చేస్తా!', 'r_f_secret_2'],
+    ],
+    'f_phone': [
+      ['😂 నిజమే', 'అయితే నా వీడియో తీసి అందరికీ పంపు!', 'r_f_phone_1'],
+      ['📱 ఒక్క నిమిషం', 'ఒక్క నిమిషం అంటే నేను లెక్కపెడుతున్నా! ఒకటి, రెండు, మూడు!', 'r_f_phone_2'],
+    ],
+    'f_looks': [
+      ['👩 నా పోలికే', 'అందుకే నేను ఇంత అందంగా ఉన్నా!', 'r_f_looks_1'],
+      ['👨 నాన్న పోలిక', 'హ్మ్, అయితే నవ్వు మాత్రం అమ్మదే!', 'r_f_looks_2'],
+    ],
+    'f_review': [
+      ['😂 థాంక్యూ', 'నెక్స్ట్ ఆర్డర్ ఇంకో గంటలో. రెడీగా ఉండు!', 'r_f_review_1'],
+      ['🍼 ఇంకా కావాలా?', 'అబ్బో! నువ్వు బెస్ట్ అమ్మవి!', 'r_f_review_2'],
+    ],
+    'f_gym': [
+      ['💪 సరే, రా', 'యే! ఇంకోసారి, ఇంకోసారి!', 'r_f_gym_1'],
+      ['😅 అలసిపోయా', 'సరే, నా పక్కన పడుకో. ఇద్దరం బజ్జుందాం!', 'r_f_gym_2'],
+    ],
+    'f_song': [
+      ['🎵 పాడుతా', 'సూపర్! నువ్వే నా ఫేవరెట్ సింగర్!', 'r_f_song_1'],
+      ['😂 నువ్వే పాడు', 'ఊ ఆ, ఊ ఆ! ఎలా ఉంది నా పాట?', 'r_f_song_2'],
+    ],
+    'f_madam': [
+      ['👑 సరే మేడమ్', 'హహ! మేడమ్‌కి ఇప్పుడు పాలు కావాలి!', 'r_f_madam_1'],
+      ['🥰 నువ్వు చిన్నారివే', 'సరే సరే, ఎప్పటికీ మీ చిన్నారినే!', 'r_f_madam_2'],
+    ],
+    'f_fan': [
+      ['😂 నేను కాదా?', 'నువ్వు బెస్ట్ బెస్ట్ ఫ్రెండ్ అమ్మా!', 'r_f_fan_1'],
+      ['🌀 హాయ్ చెప్పు', 'హాయ్ ఫ్యాన్! తిరుగుతూనే ఉండు!', 'r_f_fan_2'],
     ],
     'ram': [
       ['🙏 జై శ్రీ రామ్!', 'జై శ్రీ రామ్! థాంక్యూ అమ్మా. గుడ్ నైట్!', 'r_ram'],
@@ -99,7 +159,9 @@ class Talk {
       final plan = <String, String>{};
       var id = base;
       var lastAsk = '';
-      const asks = ['amma', 'nanna', 'ammamma', 'tatayya'];
+      // funny conversation lines, shuffled so each day sounds different
+      const asks = ['f_boss', 'f_diaper', 'f_serial', 'f_paper', 'f_secret', 'f_phone', 'f_looks', 'f_review', 'f_gym', 'f_song', 'f_madam', 'f_fan'];
+      final pool = <String>[];
       for (var day = 0; day < 3; day++) {
         final d0 = DateTime(now.year, now.month, now.day + day);
         final slots = <MapEntry<DateTime, String>>[];
@@ -112,8 +174,9 @@ class Talk {
           } else if (h == 12) {
             key = r.nextBool() ? 'biryani' : 'pizza';
           } else {
-            final pick = asks.where((a) => a != lastAsk).toList();
-            key = pick[r.nextInt(pick.length)];
+            if (pool.isEmpty) pool.addAll(asks.toList()..shuffle(r));
+            key = pool.removeLast();
+            if (key == lastAsk && pool.isNotEmpty) key = pool.removeLast();
             lastAsk = key;
           }
           slots.add(MapEntry(d0.add(Duration(hours: h)), key));
@@ -156,7 +219,7 @@ class Talk {
     if (!await Voice.i.clip(k, volume: (Store.i.settings['talkVol'] as num?)?.toDouble() ?? 0.8)) await Voice.i.say(l[0], dev: l[1], lat: l[2], pitch: 1.85);
   }
 
-  static String group(String key) => key == 'gm' ? 'gm' : (key == 'ram' || key == 'gn') ? 'ram' : (key == 'biryani' || key == 'pizza') ? 'food' : 'ask';
+  static String group(String key) => key.startsWith('f_') ? key : key == 'gm' ? 'gm' : (key == 'ram' || key == 'gn') ? 'ram' : (key == 'biryani' || key == 'pizza') ? 'food' : 'ask';
 }
 
 /// The little sheet shown in the app when the baby talks (if the app is open).
