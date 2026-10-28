@@ -197,15 +197,13 @@ class Talk {
       for (var day = 0; day < 3; day++) {
         final d0 = DateTime(now.year, now.month, now.day + day);
         final slots = <MapEntry<DateTime, String>>[];
-        // 9, 10, 11, 13, 15, 16: the 3 favourites every day + 3 others, in a new order each day
-        if (rest.length < 3) rest.addAll(others.toList()..shuffle(r));
-        final today = [...favourites, rest.removeLast(), rest.removeLast(), rest.removeLast()]..shuffle(r);
+        // 9, 10, 11 AM, 12, 1, 3, 4 PM: the 3 favourites every day + 4 others, in a new order each day
+        if (rest.length < 4) rest.addAll(others.toList()..shuffle(r));
+        final today = [...favourites, rest.removeLast(), rest.removeLast(), rest.removeLast(), rest.removeLast()]..shuffle(r);
         for (var h = 8; h <= 20; h++) {
           String key;
           if (h == 8) {
             key = 'gm';
-          } else if (h == 12) {
-            key = r.nextBool() ? 'biryani' : 'pizza';
           } else if (fixed.containsKey(h)) {
             key = fixed[h]!;
           } else {
