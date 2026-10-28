@@ -188,29 +188,32 @@ class Talk {
       final r = math.Random();
       final plan = <String, String>{};
       var id = base;
-      var lastAsk = '';
       // funny conversation lines, shuffled so each day sounds different
-      const asks = ['f_boss', 'f_diaper', 'f_serial', 'f_paper', 'f_secret', 'f_phone', 'f_looks', 'f_review', 'f_gym', 'f_song', 'f_madam', 'f_fan', 'f_anna', 'f_anna_toys', 'f_anna_boss', 'f_anna_sleep', 'f_anna_cheeks', 'f_anna_bottle'];
-      final pool = <String>[];
+      // fixed times chosen by the family; the other hours get a shuffled funny line
+      const fixed = {14: 'f_review', 17: 'f_secret', 18: 'f_anna_sleep', 19: 'f_serial', 20: 'f_phone'};
+      const favourites = ['f_diaper', 'f_song', 'f_madam'];
+      const others = ['f_boss', 'f_paper', 'f_looks', 'f_gym', 'f_fan', 'f_anna', 'f_anna_toys', 'f_anna_boss', 'f_anna_cheeks', 'f_anna_bottle'];
+      final rest = <String>[];
       for (var day = 0; day < 3; day++) {
         final d0 = DateTime(now.year, now.month, now.day + day);
         final slots = <MapEntry<DateTime, String>>[];
+        // 9, 10, 11, 13, 15, 16: the 3 favourites every day + 3 others, in a new order each day
+        if (rest.length < 3) rest.addAll(others.toList()..shuffle(r));
+        final today = [...favourites, rest.removeLast(), rest.removeLast(), rest.removeLast()]..shuffle(r);
         for (var h = 8; h <= 20; h++) {
           String key;
           if (h == 8) {
             key = 'gm';
-          } else if (h == 20) {
-            key = 'gn';
           } else if (h == 12) {
             key = r.nextBool() ? 'biryani' : 'pizza';
+          } else if (fixed.containsKey(h)) {
+            key = fixed[h]!;
           } else {
-            if (pool.isEmpty) pool.addAll(asks.toList()..shuffle(r));
-            key = pool.removeLast();
-            if (key == lastAsk && pool.isNotEmpty) key = pool.removeLast();
-            lastAsk = key;
+            key = today.removeLast();
           }
           slots.add(MapEntry(d0.add(Duration(hours: h)), key));
         }
+        slots.add(MapEntry(d0.add(const Duration(hours: 20, minutes: 30)), 'ram')); // అమ్మా, నాకు జై శ్రీ రామ్ చెప్పు!
         for (final s in slots) {
           if (!s.key.isAfter(now.add(const Duration(seconds: 30)))) continue;
           final p = await _path(s.value);

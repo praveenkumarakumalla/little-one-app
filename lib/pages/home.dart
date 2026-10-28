@@ -451,7 +451,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             },
           ),
         ]),
-        Text('☀️ 8 AM "గుడ్ మార్నింగ్ అమ్మా, లేచావా?" · every hour a funny chat ("నాన్నా, బాస్ తిడుతున్నాడా?", "అమ్మమ్మా, సీరియల్ ఆపు!") – tap a reply and she answers back · 12 PM 🍗 biryani or 🍕 pizza · 🌙 8 PM "గుడ్ నైట్ అమ్మా, జై శ్రీ రామ్ చెప్పి బజ్జో". Works even when the app is closed.', style: TextStyle(fontSize: 12.5, color: p.ink.withValues(alpha: 0.85))),
+        Text('☀️ 8 AM good morning · 9 AM–7 PM a funny chat every hour (2 PM ⭐ పాలకు ఫైవ్ స్టార్, 5 PM 🤭 సీక్రెట్, 6 PM 😠 అన్నయ్య డిస్టర్బ్, 7 PM 📺 అమ్మమ్మా సీరియల్ ఆపు) · 12 PM 🍗 biryani · 8 PM 📱 నాన్నా ఫోన్ పక్కన పెట్టు · 8:30 PM 🙏 జై శ్రీ రామ్. Tap a reply and she answers back. Works even when the app is closed.', style: TextStyle(fontSize: 12.5, color: p.ink.withValues(alpha: 0.85))),
         Row(children: [
           Text('🔉', style: TextStyle(color: p.ink)),
           Expanded(
