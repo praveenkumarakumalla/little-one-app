@@ -12,6 +12,8 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:record/record.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
@@ -22,6 +24,7 @@ import 'clay.dart';
 
 import 'data.dart';
 import 'store.dart';
+import 'watch.dart';
 
 // ───────────────────────── encryption (runs off the UI thread for files) ─────────────────────────
 Future<Uint8List> _enc(List<int> key, List<int> data) async {
@@ -53,6 +56,9 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
   static const relay2 = 'https://ntfy.envs.net';
   static const maxMembers = 10;
   static const maxFile = 14 * 1024 * 1024;
+  /// Memories (photos/videos) up to 50 MB: bigger ones are sent in 12 MB encrypted parts.
+  static const maxMem = 50 * 1024 * 1024;
+  static const _part = 12 * 1024 * 1024;
 
   List<int>? _key;
   String? _topic;
@@ -165,7 +171,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     final f = File(m['path'].toString());
     if (!f.existsSync()) return 'missing';
     final size = await f.length();
-    if (size > maxFile) return 'too big';
+    if (size > maxMem) return 'too big';
     final meta = <String, dynamic>{
       't': 'mem',
       'id': m['id'],
@@ -179,7 +185,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
       'fname': f.path.split('/').last,
       'size': size,
     };
-    final ok = await _publishFile(meta, await f.readAsBytes());
+    final ok = await _publishMem(meta, await f.readAsBytes());
     final l = memOut.where((x) => x['id'] != m['id']).toList()
       ..add({'id': m['id'], 'path': f.path, 'meta': meta, 'at': meta['at'], 'sent': ok, 'pubAt': DateTime.now().millisecondsSinceEpoch, 'gotBy': <String>[]});
     await _saveMemOut(l);
@@ -199,17 +205,26 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _gotMemory(Map<String, dynamic> m, Map<String, dynamic>? att) async {
     final id = m['id'].toString();
-    _ack(id);
+    final parts = (m['parts'] as num?)?.toInt() ?? 1;
     final list = Store.i.list('memories');
     final i = list.indexWhere((x) => x['id'] == id);
+    if (i >= 0 && list[i]['path'] != null) {
+      _ack(id);
+      return;
+    }
+    Map<String, dynamic> urls = i >= 0 && list[i]['urls'] is Map ? Map<String, dynamic>.from(list[i]['urls'] as Map) : {};
+    if (parts > 1 && att != null) urls['${m['part'] ?? 0}'] = att['url'];
+    if (parts <= 1 || urls.length >= parts) _ack(id); // tell the sender only when every part is here
     if (i >= 0) {
-      if (list[i]['path'] != null || att == null) return;
-      list[i] = {...list[i], 'url': att['url']};
+      if (att == null) return;
+      list[i] = parts > 1 ? {...list[i], 'urls': urls, 'parts': parts} : {...list[i], 'url': att['url']};
     } else {
       list.add({
         'id': id,
         'path': null,
-        'url': att?['url'],
+        'url': parts > 1 ? null : att?['url'],
+        if (parts > 1) 'urls': urls,
+        if (parts > 1) 'parts': parts,
         'video': m['video'] == true,
         'caption': m['caption'] ?? '',
         'tag': m['tag'] ?? '',
@@ -230,18 +245,30 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
   final Set<String> _memDl = {};
   Future<void> downloadMemory(String id) async {
     final m = Store.i.list('memories').where((x) => x['id'] == id).firstOrNull;
-    if (m == null || m['url'] == null || m['path'] != null || _memDl.contains(id)) return;
+    if (m == null || m['path'] != null || _memDl.contains(id)) return;
+    final parts = (m['parts'] as num?)?.toInt() ?? 1;
+    final urls = m['urls'] is Map ? Map<String, dynamic>.from(m['urls'] as Map) : <String, dynamic>{};
+    if (parts > 1 ? urls.length < parts : m['url'] == null) return;
     _memDl.add(id);
     try {
-      final r = await http.get(Uri.parse(m['url'].toString())).timeout(const Duration(minutes: 4));
-      if (r.statusCode == 200) {
-        final clear = await _decIso(_key!, r.bodyBytes);
+      final b = BytesBuilder(copy: false);
+      var good = true;
+      for (var k = 0; k < parts && good; k++) {
+        final r = await http.get(Uri.parse((parts > 1 ? urls['$k'] : m['url']).toString())).timeout(const Duration(minutes: 6));
+        if (r.statusCode != 200) {
+          good = false;
+          break;
+        }
+        b.add(await _decIso(_key!, r.bodyBytes));
+      }
+      if (good) {
+        final clear = b.takeBytes();
         final dir = Directory('${(await getApplicationDocumentsDirectory()).path}/memories');
         if (!dir.existsSync()) dir.createSync(recursive: true);
         final safe = (m['fname'] ?? 'memory').toString().replaceAll(RegExp(r'[^\w.\- ]'), '_');
         final f = File('${dir.path}/${id}_$safe');
         await f.writeAsBytes(clear, flush: true);
-        Store.i.d['memories'] = Store.i.list('memories').map((x) => x['id'] == id ? {...x, 'path': f.path, 'url': null} : x).toList();
+        Store.i.d['memories'] = Store.i.list('memories').map((x) => x['id'] == id ? {...x, 'path': f.path, 'url': null, 'urls': null} : x).toList();
         await Store.i.save();
         notifyListeners();
       }
@@ -471,6 +498,37 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// A memory up to 50 MB: one upload, or several 12 MB parts that the other phones join back together.
+  Future<bool> _publishMem(Map<String, dynamic> meta, List<int> bytes) async {
+    if (bytes.length <= maxFile) return _publishFile(meta, bytes);
+    final n = (bytes.length / _part).ceil();
+    var ok = true;
+    for (var k = 0; k < n; k++) {
+      final end = math.min(bytes.length, (k + 1) * _part);
+      ok = await _publishFile({...meta, 'part': k, 'parts': n}, bytes.sublist(k * _part, end)) && ok;
+    }
+    return ok;
+  }
+
+  /// Cute emoji reaction on a memory; shown on every family phone.
+  Future<void> reactMemory(String id, String emoji) async {
+    _applyReact(id, emoji, myName.isEmpty ? 'Me' : myName);
+    await Store.i.save();
+    notifyListeners();
+    if (paired) unawaited(_publish({'t': 'memreact', 'ref': id, 'e': emoji, 'name': myName}));
+  }
+
+  void _applyReact(String id, String emoji, String who) {
+    Store.i.d['memories'] = Store.i.list('memories').map((x) {
+      if (x['id'] != id) return x;
+      final r = x['reacts'] is Map ? Map<String, dynamic>.from(x['reacts'] as Map) : <String, dynamic>{};
+      final l = ((r[emoji] as List?) ?? []).map((e) => e.toString()).toList();
+      if (!l.contains(who)) l.add(who);
+      r[emoji] = l;
+      return {...x, 'reacts': r};
+    }).toList();
+  }
+
   /// Encrypted file upload; [meta] travels (encrypted) as the message text.
   Future<bool> _publishFile(Map<String, dynamic> meta, List<int> bytes) async {
     if (_topic == null || _key == null) return false;
@@ -535,6 +593,11 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
         break;
       case 'memdel':
         await _memDeleted(m['ref'].toString());
+        break;
+      case 'memreact':
+        _applyReact(m['ref'].toString(), m['e'].toString(), (m['name'] ?? 'Family').toString());
+        await Store.i.save();
+        notifyListeners();
         break;
       case 'rec':
         if (await _gotRecord(m['k'].toString(), Map.from(m['item'] as Map))) await Store.i.save();
@@ -619,6 +682,8 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
           if (m['clip'] != null) 'clip': m['clip'],
           if (m['room'] != null) 'room': m['room'],
           if (m['video'] != null) 'video': m['video'],
+          if (m['reply'] != null) 'reply': m['reply'],
+          if (m['dur'] != null) 'dur': m['dur'],
           if (att != null) 'url': att['url'],
         };
         if (idx < 0) {
@@ -760,11 +825,12 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     final e = path.split('.').last.toLowerCase();
     if (['jpg', 'jpeg', 'png', 'webp', 'heic', 'gif'].contains(e)) return 'image';
     if (['mp4', 'mov', '3gp', 'mkv', 'webm', 'm4v'].contains(e)) return 'video';
+    if (['m4a', 'aac', 'ogg', 'opus', 'mp3', 'wav'].contains(e)) return 'voice';
     return 'doc';
   }
 
   /// Returns an error message, or null.
-  Future<String?> sendFile(String srcPath, {String caption = ''}) async {
+  Future<String?> sendFile(String srcPath, {String caption = '', Map<String, dynamic>? extra}) async {
     if (!paired) return 'Join the chat first';
     final src = File(srcPath);
     final size = await src.length();
@@ -772,7 +838,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     if (size > maxFile) return '$fname is ${(size / 1048576).toStringAsFixed(1)} MB. Max is 14 MB — trim the video or send a smaller file.';
     final id = Store.newId();
     final local = await src.copy('${(await _mediaDir()).path}/${id}_${fname.replaceAll(RegExp(r'[^\w.\- ]'), '_')}');
-    final m = <String, dynamic>{'id': id, 'from': me, 'name': myName, 'text': caption, 'at': DateTime.now().millisecondsSinceEpoch, 'kind': kindOf(fname), 'fname': fname, 'size': size};
+    final m = <String, dynamic>{'id': id, 'from': me, 'name': myName, 'text': caption, 'at': DateTime.now().millisecondsSinceEpoch, 'kind': kindOf(fname), 'fname': fname, 'size': size, ...?extra};
     await _store(msgs..add({...m, 'path': local.path, 'sent': false}));
     final ok = await _publishFile({'t': 'file', ...m}, await local.readAsBytes());
     if (ok) await _patch(id, {'sent': true, 'pubAt': DateTime.now().millisecondsSinceEpoch});
@@ -820,7 +886,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
       final due = x['sent'] != true || (!deliveredAll(x) && now - pub > (isFile ? 150 : 480) * 60000);
       if (!due) continue;
       budget--;
-      final meta = {for (final k in ['id', 'name', 'text', 'at', 'kind', 'fname', 'size', 'clip', 'room', 'video']) if (x[k] != null) k: x[k]};
+      final meta = {for (final k in ['id', 'name', 'text', 'at', 'kind', 'fname', 'size', 'clip', 'room', 'video', 'reply', 'dur']) if (x[k] != null) k: x[k]};
       bool ok;
       if (isFile) {
         final f = File(x['path'].toString());
@@ -842,7 +908,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
       final f = File(x['path'].toString());
       if (!f.existsSync()) continue;
       budget--;
-      final ok = await _publishFile(Map<String, dynamic>.from(x['meta'] as Map), await f.readAsBytes());
+      final ok = await _publishMem(Map<String, dynamic>.from(x['meta'] as Map), await f.readAsBytes());
       if (ok) {
         mo[i] = {...x, 'sent': true, 'pubAt': now};
         changed = true;
@@ -851,7 +917,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     if (changed) await _saveMemOut(mo);
     // finish any memory downloads that were waiting
     for (final m in Store.i.list('memories')) {
-      if (m['path'] == null && m['url'] != null) unawaited(downloadMemory(m['id'].toString()));
+      if (m['path'] == null && (m['url'] != null || m['urls'] != null)) unawaited(downloadMemory(m['id'].toString()));
     }
   }
 }
@@ -901,6 +967,12 @@ class _ChatPageState extends State<ChatPage> {
   bool emojis = false;
   String emojiTab = emojiSets.keys.first;
   bool sending = false;
+  Map<String, dynamic>? replyTo; // swipe a message to answer it
+  final AudioRecorder _rec = AudioRecorder();
+  bool recording = false, _watchWasOn = false;
+  DateTime? recStart;
+  Timer? recTick;
+  String? _recPath;
 
   @override
   void initState() {
@@ -909,14 +981,94 @@ class _ChatPageState extends State<ChatPage> {
     _focus.addListener(() {
       if (_focus.hasFocus && emojis) setState(() => emojis = false);
     });
+    _text.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
     Chat.i.setPageOpen(false);
+    recTick?.cancel();
+    if (recording) unawaited(_rec.cancel());
+    _rec.dispose();
     _text.dispose();
     _focus.dispose();
     super.dispose();
+  }
+
+  static String snippet(Map<String, dynamic> m) {
+    final t = (m['text'] ?? '').toString();
+    switch (m['kind']) {
+      case 'image':
+        return '📷 Photo${t.isEmpty ? '' : ': $t'}';
+      case 'video':
+        return '🎬 Video${t.isEmpty ? '' : ': $t'}';
+      case 'voice':
+        return '🎤 Voice message';
+      case 'doc':
+        return '📄 ${m['fname'] ?? 'File'}';
+      default:
+        return t.length > 90 ? '${t.substring(0, 90)}…' : t;
+    }
+  }
+
+  Map<String, dynamic>? _replyExtra() {
+    final r = replyTo;
+    if (r == null) return null;
+    return {'reply': {'id': r['id'], 'name': r['from'] == Chat.i.me ? 'You' : r['name'], 'text': snippet(r)}};
+  }
+
+  // ───── voice messages ─────
+  Future<void> _startRec() async {
+    if (!await _rec.hasPermission()) {
+      _snack('Allow the microphone to send voice messages');
+      return;
+    }
+    // the cry listener uses the microphone too – pause it while recording
+    _watchWasOn = SleepWatch.i.on;
+    if (_watchWasOn) await SleepWatch.i.stop(remember: false);
+    final dir = await getTemporaryDirectory();
+    _recPath = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    try {
+      await _rec.start(const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000, sampleRate: 44100, numChannels: 1), path: _recPath!);
+    } catch (e) {
+      _snack('Could not start recording');
+      if (_watchWasOn) unawaited(SleepWatch.i.start());
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    setState(() {
+      recording = true;
+      recStart = DateTime.now();
+    });
+    recTick = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (!mounted) return;
+      setState(() {});
+      if (DateTime.now().difference(recStart!).inMinutes >= 5) _stopRec(send: true); // 5 minutes max
+    });
+  }
+
+  Future<void> _stopRec({required bool send}) async {
+    recTick?.cancel();
+    final secs = recStart == null ? 0 : DateTime.now().difference(recStart!).inSeconds;
+    String? path;
+    try {
+      path = send ? await _rec.stop() : null;
+      if (!send) await _rec.cancel();
+    } catch (_) {}
+    if (_watchWasOn) unawaited(SleepWatch.i.start());
+    if (!mounted) return;
+    setState(() => recording = false);
+    if (!send || path == null || secs < 1) {
+      if (send && secs < 1) _snack('Hold on a little longer to record');
+      return;
+    }
+    HapticFeedback.selectionClick();
+    final extra = {'dur': secs, ...?_replyExtra()};
+    setState(() => replyTo = null);
+    final err = await Chat.i.sendFile(path, extra: extra);
+    if (err != null && mounted) _snack(err);
   }
 
   void _snack(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
@@ -1022,7 +1174,16 @@ class _ChatPageState extends State<ChatPage> {
                     final newDay = prev == null || ymd(prev) != ymd(at);
                     return Column(children: [
                       if (newDay) Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Chip(label: Text(ymd(at) == ymd(DateTime.now()) ? 'Today' : dmy(at)))),
-                      _bubble(context, m, m['from'] == c.me, at),
+                      m['kind'] == 'sys' || m['kind'] == 'join'
+                          ? _bubble(context, m, m['from'] == c.me, at)
+                          : _SwipeReply(
+                              onReply: () {
+                                HapticFeedback.selectionClick();
+                                setState(() => replyTo = m);
+                                _focus.requestFocus();
+                              },
+                              child: _bubble(context, m, m['from'] == c.me, at),
+                            ),
                     ]);
                   },
                 ),
@@ -1035,6 +1196,37 @@ class _ChatPageState extends State<ChatPage> {
             ...quickMsgs.map((q) => Padding(padding: const EdgeInsets.symmetric(horizontal: 3), child: ActionChip(label: Text(q), onPressed: () => c.send(q)))),
           ]),
         ),
+        if (replyTo != null)
+          Container(
+            margin: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+            padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+            decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(14), border: Border(left: BorderSide(color: cs.primary, width: 4))),
+            child: Row(children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Replying to ${replyTo!['from'] == c.me ? 'yourself' : replyTo!['name']}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: cs.primary)),
+                  Text(snippet(replyTo!), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+                ]),
+              ),
+              IconButton(onPressed: () => setState(() => replyTo = null), icon: const Icon(Icons.close, size: 20)),
+            ]),
+          ),
+        if (recording)
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 6, 8, 8),
+              child: Row(children: [
+                IconButton(tooltip: 'Cancel', onPressed: () => _stopRec(send: false), icon: Icon(Icons.delete_outline, color: cs.error, size: 28)),
+                const SizedBox(width: 6),
+                const Icon(Icons.fiber_manual_record, color: Colors.red, size: 16),
+                const SizedBox(width: 6),
+                Expanded(child: Text('Recording…  ${_mmss(DateTime.now().difference(recStart ?? DateTime.now()).inSeconds)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
+                IconButton.filled(iconSize: 26, onPressed: () => _stopRec(send: true), icon: const Icon(Icons.send)),
+              ]),
+            ),
+          )
+        else
         SafeArea(
           top: false,
           bottom: !emojis,
@@ -1073,15 +1265,20 @@ class _ChatPageState extends State<ChatPage> {
                 ),
               ),
               const SizedBox(width: 6),
-              IconButton.filled(
-                iconSize: 24,
-                onPressed: () {
-                  final t = _text.text;
-                  _text.clear();
-                  c.send(t);
-                },
-                icon: const Icon(Icons.send),
-              ),
+              if (_text.text.trim().isEmpty)
+                IconButton.filled(tooltip: 'Voice message', iconSize: 24, onPressed: sending ? null : _startRec, icon: const Icon(Icons.mic))
+              else
+                IconButton.filled(
+                  iconSize: 24,
+                  onPressed: () {
+                    final t = _text.text;
+                    final extra = _replyExtra();
+                    _text.clear();
+                    setState(() => replyTo = null);
+                    c.send(t, extra: extra);
+                  },
+                  icon: const Icon(Icons.send),
+                ),
             ]),
           ),
         ),
@@ -1153,7 +1350,7 @@ class _ChatPageState extends State<ChatPage> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: cs.surface.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(12)),
           child: Row(children: [
-            Text(kind == 'image' ? '🖼️' : kind == 'video' ? '🎬' : '📄', style: const TextStyle(fontSize: 26)),
+            Text(kind == 'image' ? '🖼️' : kind == 'video' ? '🎬' : kind == 'voice' ? '🎤' : '📄', style: const TextStyle(fontSize: 26)),
             const SizedBox(width: 10),
             Expanded(child: Text('${m['fname'] ?? ''}\n${m['size'] != null ? _size(m['size'] as num) : ''} · $label', style: const TextStyle(fontSize: 12))),
           ]),
@@ -1166,6 +1363,7 @@ class _ChatPageState extends State<ChatPage> {
         child: ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(File(path), width: 230, fit: BoxFit.cover, cacheWidth: 600)),
       );
     }
+    if (kind == 'voice') return _VoiceBubble(path: path, secs: (m['dur'] as num?)?.toInt() ?? 0);
     if (kind == 'video') {
       return GestureDetector(
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => MediaView(path: path, video: true))),
@@ -1201,7 +1399,7 @@ class _ChatPageState extends State<ChatPage> {
       return Padding(padding: const EdgeInsets.all(6), child: Text(m['text'].toString(), textAlign: TextAlign.center, style: TextStyle(color: cs.outline, fontSize: 13)));
     }
     final tick = !mine ? '' : c.deliveredAll(m) && (m['gotBy'] != null || m['got'] == true) ? ' ✓✓' : m['sent'] == true ? ' ✓' : ' 🕓';
-    final isMedia = ['image', 'video', 'doc'].contains(m['kind']);
+    final isMedia = ['image', 'video', 'doc', 'voice'].contains(m['kind']);
     final reacts = Map<String, dynamic>.from((m['reacts'] ?? {}) as Map);
     final rc = <String, int>{};
     for (final e in reacts.values) {
@@ -1222,6 +1420,16 @@ class _ChatPageState extends State<ChatPage> {
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (!mine) Padding(padding: EdgeInsets.only(left: isMedia ? 6 : 0, bottom: 2), child: Text(m['name'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: cs.primary))),
+              if (m['reply'] is Map)
+                Container(
+                  margin: EdgeInsets.only(bottom: 5, left: isMedia ? 2 : 0, right: isMedia ? 2 : 0),
+                  padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+                  decoration: BoxDecoration(color: cs.surface.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(10), border: Border(left: BorderSide(color: cs.primary, width: 3))),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(((m['reply'] as Map)['name'] ?? '').toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: cs.primary)),
+                    Text(((m['reply'] as Map)['text'] ?? '').toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.75))),
+                  ]),
+                ),
               if (isMedia) _media(context, m),
               if (m['kind'] == 'call')
                 InkWell(
@@ -1579,6 +1787,123 @@ class _PairViewState extends State<_PairView> {
           ),
         ),
         if (busy) const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator())),
+      ]),
+    );
+  }
+}
+
+
+String _mmss(int secs) => '${secs ~/ 60}:${(secs % 60).toString().padLeft(2, '0')}';
+
+/// Swipe a message to the right (like WhatsApp) to reply to it.
+class _SwipeReply extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onReply;
+  const _SwipeReply({required this.child, required this.onReply});
+  @override
+  State<_SwipeReply> createState() => _SwipeReplyState();
+}
+
+class _SwipeReplyState extends State<_SwipeReply> {
+  double dx = 0;
+  bool fired = false;
+  @override
+  Widget build(BuildContext context) {
+    final k = (dx / 64).clamp(0.0, 1.0);
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragUpdate: (d) {
+        setState(() => dx = (dx + d.delta.dx).clamp(0.0, 90.0));
+        if (dx >= 64 && !fired) {
+          fired = true;
+          HapticFeedback.lightImpact();
+        }
+      },
+      onHorizontalDragEnd: (_) {
+        if (fired) widget.onReply();
+        setState(() {
+          dx = 0;
+          fired = false;
+        });
+      },
+      onHorizontalDragCancel: () => setState(() {
+        dx = 0;
+        fired = false;
+      }),
+      child: Stack(alignment: Alignment.centerLeft, children: [
+        Opacity(opacity: k, child: Padding(padding: const EdgeInsets.only(left: 4), child: CircleAvatar(radius: 16, backgroundColor: Theme.of(context).colorScheme.primaryContainer, child: Icon(Icons.reply, size: 18, color: Theme.of(context).colorScheme.primary)))),
+        AnimatedContainer(duration: Duration(milliseconds: dx == 0 ? 180 : 0), transform: Matrix4.translationValues(dx, 0, 0), child: widget.child),
+      ]),
+    );
+  }
+}
+
+/// Voice message: play / pause with a progress bar.
+class _VoiceBubble extends StatefulWidget {
+  final String path;
+  final int secs;
+  const _VoiceBubble({required this.path, required this.secs});
+  @override
+  State<_VoiceBubble> createState() => _VoiceBubbleState();
+}
+
+class _VoiceBubbleState extends State<_VoiceBubble> {
+  final p = AudioPlayer();
+  Duration pos = Duration.zero, total = Duration.zero;
+  bool playing = false;
+  final List<StreamSubscription> subs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    total = Duration(seconds: widget.secs);
+    subs.add(p.onPositionChanged.listen((d) => mounted ? setState(() => pos = d) : null));
+    subs.add(p.onDurationChanged.listen((d) => mounted ? setState(() => total = d) : null));
+    subs.add(p.onPlayerComplete.listen((_) => mounted ? setState(() {
+          playing = false;
+          pos = Duration.zero;
+        }) : null));
+  }
+
+  @override
+  void dispose() {
+    for (final s in subs) {
+      s.cancel();
+    }
+    p.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggle() async {
+    if (playing) {
+      await p.pause();
+      setState(() => playing = false);
+    } else {
+      if (pos == Duration.zero) {
+        await p.play(DeviceFileSource(widget.path));
+      } else {
+        await p.resume();
+      }
+      setState(() => playing = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final t = total.inMilliseconds == 0 ? 0.0 : (pos.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
+    return SizedBox(
+      width: 230,
+      child: Row(children: [
+        IconButton.filled(onPressed: _toggle, icon: Icon(playing ? Icons.pause : Icons.play_arrow)),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: t, minHeight: 5, backgroundColor: cs.outlineVariant)),
+            const SizedBox(height: 4),
+            Text('🎤 ${_mmss((playing || pos > Duration.zero ? pos : total).inSeconds)}', style: TextStyle(fontSize: 12, color: cs.outline)),
+          ]),
+        ),
       ]),
     );
   }

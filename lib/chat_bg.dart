@@ -31,6 +31,7 @@ class ChatNotify {
     if (kind == 'image') return '📷 Photo${text.isNotEmpty ? ' · $text' : ''}';
     if (kind == 'video') return '🎬 Video${text.isNotEmpty ? ' · $text' : ''}';
     if (kind == 'doc') return '📄 ${m['fname'] ?? 'Document'}';
+    if (kind == 'voice') return '🎤 Voice message';
     if (kind == 'say') return '🔊👶 Baby says: $text';
     if (kind == 'call') return '${m['video'] == true ? '📹 Video' : '📞 Voice'} call – open Little One to join';
     return text;

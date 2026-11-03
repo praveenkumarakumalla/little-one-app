@@ -613,7 +613,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
   Widget _thumb() {
     final m = lastMemory;
     return GestureDetector(
-      onTap: m == null ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => ViewerPage(m: m))),
+      onTap: m == null ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => ReelsPage(items: [m], start: 0))),
       child: Container(
         width: 56,
         height: 56,
