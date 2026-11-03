@@ -86,7 +86,6 @@ perms = ["INTERNET", "RECORD_AUDIO", "CAMERA", "MODIFY_AUDIO_SETTINGS", "POST_NO
          "ACCESS_NOTIFICATION_POLICY", "READ_MEDIA_AUDIO", "READ_MEDIA_IMAGES", "READ_MEDIA_VIDEO"]
 block = "".join(f'    <uses-permission android:name="android.permission.{p}"/>\n' for p in perms)
 block += '    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>\n'
-block += '    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>\n'  # save to Gallery on old phones
 must("<application" in m, "no <application> in manifest")
 m = m.replace("    <application", block + "    <application", 1)
 m = re.sub(r'android:label="[^"]*"', 'android:label="Little One"', m, count=1)
