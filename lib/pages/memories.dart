@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:gal/gal.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
 import '../chat.dart';
@@ -14,8 +16,43 @@ import '../store.dart';
 const milestones = ['', 'First smile', 'First bath', 'Namakaranam', 'Barasala', 'Ashlesha shanti', 'Annaprasana', 'First tooth', 'First word', 'First steps', 'Aksharabhyasam', 'Birthday', 'Festival'];
 bool isVideo(String p) => RegExp(r'\.(mp4|mov|3gp|mkv|webm)$', caseSensitive: false).hasMatch(p);
 
-class MemoriesPage extends StatelessWidget {
+/// Saves photos/videos to the phone's Gallery (album "Little One"). Returns how many were saved.
+Future<int> saveToGallery(BuildContext context, List<Map<String, dynamic>> items) async {
+  try {
+    if (!await Gal.hasAccess(toAlbum: true)) await Gal.requestAccess(toAlbum: true);
+  } catch (_) {}
+  var n = 0;
+  for (final m in items) {
+    final p = m['path']?.toString();
+    if (p == null || !File(p).existsSync()) continue;
+    try {
+      m['video'] == true ? await Gal.putVideo(p, album: 'Little One') : await Gal.putImage(p, album: 'Little One');
+      n++;
+    } catch (_) {}
+  }
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(n == 0 ? 'Could not save – allow Photos access for Little One in Settings' : '✅ $n saved to Gallery → album "Little One"')));
+  }
+  return n;
+}
+
+Future<void> shareMemories(List<Map<String, dynamic>> items) async {
+  final files = [for (final m in items) if (m['path'] != null && File(m['path'].toString()).existsSync()) XFile(m['path'].toString())];
+  if (files.isEmpty) return;
+  final cap = items.length == 1 ? (items.first['caption'] ?? '').toString() : '';
+  await Share.shareXFiles(files, text: cap.isEmpty ? null : cap);
+}
+
+String _mb(int bytes) => bytes >= 1024 * 1024 * 1024 ? '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB' : '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+
+class MemoriesPage extends StatefulWidget {
   const MemoriesPage({super.key});
+  @override
+  State<MemoriesPage> createState() => _MemoriesPageState();
+}
+
+class _MemoriesPageState extends State<MemoriesPage> {
+  final Set<String> sel = {};
 
   Future<void> _add(BuildContext context) async {
     final picked = await ImagePicker().pickMultipleMedia(imageQuality: 85, maxWidth: 2400);
@@ -60,8 +97,45 @@ class MemoriesPage extends StatelessWidget {
         for (final m in items) {
           groups.putIfAbsent((m['date'] ?? '').toString().substring(0, 7), () => []).add(m);
         }
+        final chosen = items.where((m) => sel.contains(m['id'].toString())).toList();
+        var photos = 0, videos = 0, bytes = 0;
+        for (final m in items) {
+          final p = m['path']?.toString();
+          if (p == null) continue;
+          m['video'] == true ? videos++ : photos++;
+          try {
+            bytes += File(p).lengthSync();
+          } catch (_) {}
+        }
+        if (sel.isNotEmpty) {
+          return Scaffold(
+            appBar: AppBar(
+              leading: IconButton(icon: const Icon(Icons.close), onPressed: () => setState(sel.clear)),
+              title: Text(chosen.isEmpty ? 'Tap memories to select' : '${chosen.length} selected'),
+              actions: [
+                IconButton(tooltip: 'Select all', icon: const Icon(Icons.select_all), onPressed: () => setState(() => sel.addAll(items.where((m) => m['path'] != null).map((m) => m['id'].toString())))),
+                IconButton(tooltip: 'Save to Gallery', icon: const Icon(Icons.download), onPressed: () async {
+                  await saveToGallery(context, chosen);
+                  if (mounted) setState(sel.clear);
+                }),
+                IconButton(tooltip: 'Share', icon: const Icon(Icons.share), onPressed: () => shareMemories(chosen)),
+              ],
+            ),
+            body: _grid(context, groups),
+          );
+        }
         return Scaffold(
           appBar: AppBar(title: const Text('Memories · జ్ఞాపకాలు'), actions: [
+            PopupMenuButton<String>(
+              onSelected: (v) async {
+                if (v == 'all') await saveToGallery(context, items.where((m) => m['path'] != null).toList());
+                if (v == 'pick') setState(() => sel.add('_'));
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'pick', child: Text('☑️ Select to save / share')),
+                PopupMenuItem(value: 'all', child: Text('⬇️ Save all to Gallery')),
+              ],
+            ),
             IconButton(
               tooltip: 'Share with family',
               icon: Icon(Chat.i.paired ? Icons.cloud_sync_outlined : Icons.cloud_off_outlined),
@@ -75,6 +149,20 @@ class MemoriesPage extends StatelessWidget {
                 ])
               : ListView(padding: const EdgeInsets.fromLTRB(12, 0, 12, 90), children: [
                   if (!Chat.i.paired) _connectBanner(context),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+                    child: Text('📸 $photos photos · 🎬 $videos videos · 💾 ${_mb(bytes)} on this phone\nLong-press to select · tap a memory to save or share it', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7))),
+                  ),
+                  ..._sections(context, groups),
+                ]),
+        );
+      },
+    );
+  }
+
+  Widget _grid(BuildContext context, Map<String, List<Map<String, dynamic>>> groups) => ListView(padding: const EdgeInsets.fromLTRB(12, 0, 12, 90), children: _sections(context, groups));
+
+  List<Widget> _sections(BuildContext context, Map<String, List<Map<String, dynamic>>> groups) => [
                   for (final g in groups.entries) ...[
                     Padding(
                       padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
@@ -89,11 +177,7 @@ class MemoriesPage extends StatelessWidget {
                       children: g.value.map((m) => _tile(context, m)).toList(),
                     ),
                   ],
-                ]),
-        );
-      },
-    );
-  }
+      ];
 
   Widget _connectBanner(BuildContext context) => Padding(
         padding: const EdgeInsets.only(top: 4, bottom: 6),
@@ -156,8 +240,19 @@ class MemoriesPage extends StatelessWidget {
       );
     }
     final path = m['path'].toString();
+    final id = m['id'].toString(), picked = sel.contains(id);
     return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ViewerPage(m: m))),
+      onLongPress: () => setState(() => sel..remove('_')..add(id)),
+      onTap: () {
+        if (sel.isNotEmpty) {
+          setState(() {
+            sel.remove('_');
+            picked ? sel.remove(id) : sel.add(id);
+          });
+          return;
+        }
+        Navigator.push(context, MaterialPageRoute(builder: (_) => ViewerPage(m: m)));
+      },
       child: ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: Stack(fit: StackFit.expand, children: [
@@ -166,6 +261,7 @@ class MemoriesPage extends StatelessWidget {
               : Image.file(File(path), fit: BoxFit.cover, cacheWidth: 360, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image)),
           if (m['from'] != null)
             Positioned(right: 5, bottom: 5, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(8)), child: Text('👤 ${m['from']}', style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)))),
+          if (picked) Container(color: Colors.black38, alignment: Alignment.center, child: const Icon(Icons.check_circle, color: Colors.white, size: 36)),
           if ((m['tag'] ?? '').toString().isNotEmpty)
             Positioned(left: 6, top: 6, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)), child: Text(m['tag'].toString(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.pink)))),
         ]),
@@ -210,6 +306,8 @@ class _ViewerPageState extends State<ViewerPage> {
         foregroundColor: Colors.white,
         title: Text((m['caption'] ?? '').toString(), style: const TextStyle(color: Colors.white, fontSize: 18)),
         actions: [
+          IconButton(tooltip: 'Save to Gallery', icon: const Icon(Icons.download), onPressed: () => saveToGallery(context, [m])),
+          IconButton(tooltip: 'Share', icon: const Icon(Icons.share), onPressed: () => shareMemories([m])),
           IconButton(
             icon: const Icon(Icons.delete_outline),
             onPressed: () async {
