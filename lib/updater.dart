@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'store.dart';
 
@@ -20,14 +21,51 @@ class Updater {
   static String get _apk => channel == 'trial' ? 'LittleOneTrial.apk' : 'LittleOne.apk';
   static bool _running = false;
 
-  /// [manual] = the user tapped "Check for updates" (always tells the result).
+  /// An update already downloaded in the background? Then it's one tap: Install.
+  static Future<bool> _installReady(BuildContext context, int mine) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final v = prefs.getString('updReady');
+    if (v == null) return false;
+    final parts = v.split('|');
+    final ver = int.tryParse(parts.first) ?? 0;
+    final f = File(parts.length > 1 ? parts[1] : '');
+    if (ver <= mine || !f.existsSync()) {
+      await prefs.remove('updReady');
+      return false;
+    }
+    if (!context.mounted) return true;
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        icon: const Text('🎁', style: TextStyle(fontSize: 48)),
+        title: const Text('Update ready!'),
+        content: Text('Little One 1.0.$ver is already downloaded.\nTap Install – your data stays safe.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Later')),
+          FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Install')),
+        ],
+      ),
+    );
+    if (go == true) {
+      final r = await OpenFilex.open(f.path, type: 'application/vnd.android.package-archive');
+      if (r.type != ResultType.done && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Allow "Install unknown apps" for Little One, then tap Install again. (${r.message})')));
+      }
+    }
+    return true;
+  }
+
+  /// [manual] = the user tapped "Check for updates" or the update notification (always tells the result).
   static Future<void> check(BuildContext context, {bool manual = false}) async {
     if (_running) return;
     final last = (Store.i.settings['updCheck'] as num?)?.toInt() ?? 0;
     final now = DateTime.now().millisecondsSinceEpoch;
-    if (!manual && now - last < 3 * 3600 * 1000) return; // at most every 3 hours
+    if (!manual && now - last < 20 * 60 * 1000) return; // every time the app is opened (at most every 20 min)
     _running = true;
     try {
+      final mine0 = int.tryParse((await PackageInfo.fromPlatform()).buildNumber) ?? 0;
+      if (channel != 'trial' && await _installReady(context, mine0)) return;
       await Store.i.setSetting('updCheck', now);
       final info = await PackageInfo.fromPlatform();
       final mine = int.tryParse(info.buildNumber) ?? 0;
@@ -51,7 +89,7 @@ class Updater {
         builder: (d) => AlertDialog(
           icon: const Text('🎁', style: TextStyle(fontSize: 48)),
           title: const Text('New update ready!'),
-          content: Text('Little One 1.0.$latest is available (you have 1.0.$mine).\n\nTap Update – it downloads here, then tap "Install". Your data stays safe.'),
+          content: Text('Little One 1.0.$latest is available (you have 1.0.$mine).\n\nTap Update – it downloads here and opens the installer. Your data stays safe.'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Later')),
             FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Update now')),

@@ -5,7 +5,11 @@ import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'dart:io';
+
 import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Family-chat notifications.
@@ -76,6 +80,9 @@ Future<void> chatBackgroundCheck() async {
   WidgetsFlutterBinding.ensureInitialized();
   DartPluginRegistrant.ensureInitialized();
   try {
+    await backgroundUpdate();
+  } catch (_) {}
+  try {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
     final raw = prefs.getString('data');
@@ -123,4 +130,65 @@ Future<void> chatBackgroundCheck() async {
     }
     await prefs.setInt('chatBgSince', latest);
   } catch (_) {}
+}
+
+
+/// Every ~2 hours (also when the app is closed): if GitHub has a newer Little One, download it quietly
+/// and show "Update ready – tap to install". Tapping it opens Android's installer (one tap: Install).
+@pragma('vm:entry-point')
+Future<void> backgroundUpdate({bool force = false}) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.reload();
+  final now = DateTime.now().millisecondsSinceEpoch;
+  if (!force && now - (prefs.getInt('updBgAt') ?? 0) < 2 * 3600 * 1000) return;
+  await prefs.setInt('updBgAt', now);
+  final info = await PackageInfo.fromPlatform();
+  if (info.packageName.contains('trial')) return; // the trial app updates on its own channel
+  final mine = int.tryParse(info.buildNumber) ?? 0;
+  final r = await http.get(Uri.parse('https://api.github.com/repos/praveenkumarakumalla/little-one-app/releases/latest'), headers: {'Accept': 'application/vnd.github+json'}).timeout(const Duration(seconds: 20));
+  if (r.statusCode != 200) return;
+  final j = jsonDecode(r.body) as Map;
+  final latest = int.tryParse((j['tag_name'] ?? '').toString().split('.').last) ?? 0;
+  if (latest <= mine) return;
+  final asset = ((j['assets'] as List?) ?? []).cast<Map>().firstWhere((a) => a['name'] == 'LittleOne.apk', orElse: () => {});
+  final url = asset['browser_download_url']?.toString();
+  final size = (asset['size'] as num?)?.toInt() ?? 0;
+  if (url == null) return;
+  final dir = Directory('${(await getApplicationSupportDirectory()).path}/updates');
+  if (!dir.existsSync()) dir.createSync(recursive: true);
+  final f = File('${dir.path}/LittleOne-$latest.apk');
+  if (!f.existsSync() || (size > 0 && f.lengthSync() != size)) {
+    // remove older downloads, then fetch this one
+    for (final o in dir.listSync()) {
+      try {
+        o.deleteSync();
+      } catch (_) {}
+    }
+    final client = http.Client();
+    try {
+      final res = await client.send(http.Request('GET', Uri.parse(url))).timeout(const Duration(seconds: 30));
+      final tmp = File('${f.path}.part');
+      final sink = tmp.openWrite();
+      await res.stream.pipe(sink);
+      if (size > 0 && tmp.lengthSync() != size) {
+        tmp.deleteSync();
+        return;
+      }
+      tmp.renameSync(f.path);
+    } finally {
+      client.close();
+    }
+  }
+  await prefs.setString('updReady', '$latest|${f.path}');
+  if (prefs.getInt('updNotified') == latest) return;
+  await prefs.setInt('updNotified', latest);
+  final n = FlutterLocalNotificationsPlugin();
+  await n.initialize(const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')));
+  await n.show(
+    7700,
+    '🎁 Little One update ready',
+    'Version 1.0.$latest is downloaded. Tap to install – your data stays safe.',
+    const NotificationDetails(android: AndroidNotificationDetails('app_update', 'App updates', channelDescription: 'New versions of Little One', importance: Importance.high, priority: Priority.high)),
+    payload: 'update',
+  );
 }

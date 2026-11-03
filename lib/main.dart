@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import 'call.dart';
 import 'chat.dart';
+import 'chat_bg.dart';
 import 'feed_alarm.dart';
 import 'games/games_page.dart';
 import 'moments.dart';
@@ -68,7 +69,7 @@ class Shell extends StatefulWidget {
   State<Shell> createState() => _ShellState();
 }
 
-class _ShellState extends State<Shell> {
+class _ShellState extends State<Shell> with WidgetsBindingObserver {
   int tab = 0;
   StreamSubscription? _ringSub;
   bool _dialogOpen = false;
@@ -78,6 +79,8 @@ class _ShellState extends State<Shell> {
   void initState() {
     super.initState();
     Calls.nav = navKey;
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(ChatNotify.start()); // background checks: chat + app updates
     _ringSub = Alarm.ringing.listen((set) {
       final ids = set.alarms.map((a) => a.id).toList();
       if (ids.contains(FeedAlarm.id)) _showFeedAlarm();
@@ -122,6 +125,11 @@ class _ShellState extends State<Shell> {
     Moments.route.value = null;
     final nav = navKey.currentState;
     if (nav == null) return;
+    if (r == 'update') {
+      final ctx = navKey.currentContext;
+      if (ctx != null) unawaited(Updater.check(ctx, manual: true));
+      return;
+    }
     if (r == 'chat') {
       nav.popUntil((x) => x.isFirst);
       setState(() => tab = 2);
@@ -131,7 +139,15 @@ class _ShellState extends State<Shell> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState s) {
+    if (s != AppLifecycleState.resumed) return;
+    final ctx = navKey.currentContext;
+    if (ctx != null && ctx.mounted) unawaited(Updater.check(ctx));
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     Moments.route.removeListener(_openRoute);
     _ringSub?.cancel();
     super.dispose();
