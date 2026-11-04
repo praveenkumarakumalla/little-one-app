@@ -110,7 +110,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
       final ctx = navKey.currentContext;
       if (ctx != null && ctx.mounted) unawaited(Updater.check(ctx));
     });
-    Timer.periodic(const Duration(hours: 3), (_) {
+    Timer.periodic(const Duration(minutes: 30), (_) {
       final ctx = navKey.currentContext;
       if (ctx != null && ctx.mounted) unawaited(Updater.check(ctx));
     });

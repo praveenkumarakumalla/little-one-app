@@ -94,3 +94,7 @@ jobs:
           files: |
             LittleOne.apk
             LittleOne-older-phones.apk
+
+      - name: Tell phones a new version is out
+        run: |
+          for r in https://ntfy.sh https://ntfy.envs.net; do curl -s -m 20 -d "${{ github.run_number }}" "$r/little-one-praveen-app-updates" || true; done

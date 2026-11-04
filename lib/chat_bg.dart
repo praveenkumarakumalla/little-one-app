@@ -135,11 +135,33 @@ Future<void> chatBackgroundCheck() async {
 
 /// Every ~2 hours (also when the app is closed): if GitHub has a newer Little One, download it quietly
 /// and show "Update ready – tap to install". Tapping it opens Android's installer (one tap: Install).
+/// Public topic that only ever carries a version number (nothing private).
+const updateTopic = 'little-one-praveen-app-updates';
+
 @pragma('vm:entry-point')
 Future<void> backgroundUpdate({bool force = false}) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.reload();
   final now = DateTime.now().millisecondsSinceEpoch;
+  // Instant path: the build server posts the new version number to a small ntfy topic the moment a release
+  // is out; this background check (every ~15 min) sees it and downloads right away instead of waiting 2 h.
+  if (!force) {
+    for (final relay in const ['https://ntfy.sh', 'https://ntfy.envs.net']) {
+      try {
+        final since = prefs.getInt('updPushSince') ?? (now ~/ 1000 - 24 * 3600);
+        final r = await http.get(Uri.parse('$relay/$updateTopic/json?poll=1&since=$since')).timeout(const Duration(seconds: 15));
+        if (r.statusCode != 200) continue;
+        for (final line in const LineSplitter().convert(r.body)) {
+          if (line.trim().isEmpty) continue;
+          final ev = jsonDecode(line) as Map;
+          if (ev['event'] == 'message') force = true;
+          final t = (ev['time'] as num?)?.toInt() ?? 0;
+          if (t > since) await prefs.setInt('updPushSince', t);
+        }
+        break;
+      } catch (_) {}
+    }
+  }
   if (!force && now - (prefs.getInt('updBgAt') ?? 0) < 2 * 3600 * 1000) return;
   await prefs.setInt('updBgAt', now);
   final info = await PackageInfo.fromPlatform();
