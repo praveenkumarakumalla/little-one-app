@@ -30,7 +30,7 @@ class DriveBackup extends ChangeNotifier {
   String? get email => account?.email ?? Store.i.settings['driveEmail']?.toString();
   Set<String> get _done => ((Store.i.d['driveDone'] as List?) ?? []).map((e) => e.toString()).toSet();
   int get uploaded => Store.i.list('memories').where((m) => _done.contains(m['id'].toString())).length;
-  int get pending => Store.i.list('memories').where((m) => m['path'] != null && !_done.contains(m['id'].toString())).length;
+  int get pending => Store.i.list('memories').where((m) => m['path'] != null && !_done.contains(m['id'].toString()) && File(m['path'].toString()).existsSync()).length;
 
   Future<void> init() async {
     // new memories and record changes trigger an upload
@@ -82,10 +82,26 @@ class DriveBackup extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _connect() async {
+  DateTime _connectedAt = DateTime(2000);
+
+  /// Google access tokens expire after ~1 hour – [fresh] throws the old one away and asks Google for a new one.
+  Future<void> _connect({bool fresh = false}) async {
+    if (fresh) {
+      try {
+        final old = (await account?.authentication)?.accessToken;
+        if (old != null) await _gsi.clearAuthCache(token: old);
+      } catch (_) {}
+      account = await _gsi.signInSilently(reAuthenticate: true) ?? account;
+    }
     final client = await _gsi.authenticatedClient();
     if (client == null) throw 'No Google access';
     _api = drive.DriveApi(client);
+    _connectedAt = DateTime.now();
+  }
+
+  static bool _authErr(Object e) {
+    final t = '$e';
+    return t.contains('invalid_token') || t.contains('Access was denied') || t.contains('401') || t.contains('Invalid Credentials');
   }
 
   void _soon() {
@@ -138,18 +154,38 @@ class DriveBackup extends ChangeNotifier {
     busy = true;
     notifyListeners();
     try {
-      if (_api == null) {
-        account ??= await _gsi.signInSilently();
-        if (account == null) throw 'Signed out – tap Connect again';
-        await _connect();
+      await _sweep(records);
+    } catch (e) {
+      if (_authErr(e)) {
+        // token ran out – get a fresh one and try once more
+        try {
+          await _connect(fresh: true);
+          await _sweep(records);
+        } catch (e2) {
+          lastError = '$e2';
+          status = 'Will retry automatically';
+        }
+      } else {
+        lastError = '$e';
+        status = 'Will retry automatically';
       }
-      final api = _api!;
+    }
+    busy = false;
+    notifyListeners();
+  }
+
+  Future<void> _sweep(bool records) async {
+    {
+      account ??= await _gsi.signInSilently();
+      if (account == null) throw 'Signed out – tap Connect again';
+      if (_api == null || DateTime.now().difference(_connectedAt).inMinutes > 40) await _connect(fresh: _api != null);
       final (root, photos, videos) = await _folders();
       final todo = Store.i.list('memories').where((m) => m['path'] != null && !_done.contains(m['id'].toString())).toList();
       var n = 0;
       for (final m in todo) {
         final f = File(m['path'].toString());
         if (!f.existsSync()) continue;
+        if (DateTime.now().difference(_connectedAt).inMinutes > 40) await _connect(fresh: true);
         status = 'Uploading ${++n} of ${todo.length}…';
         notifyListeners();
         final name = '${m['date'] ?? ''} ${(m['caption'] ?? '').toString().trim()} ${f.path.split('/').last}'.trim();
@@ -158,21 +194,16 @@ class DriveBackup extends ChangeNotifier {
           ..parents = [m['video'] == true ? videos : photos]
           ..description = [if ((m['caption'] ?? '').toString().isNotEmpty) m['caption'], if ((m['tag'] ?? '').toString().isNotEmpty) m['tag'], if (m['from'] != null) 'by ${m['from']}'].join(' · ');
         final len = await f.length();
-        await api.files.create(meta, uploadMedia: drive.Media(f.openRead(), len), uploadOptions: drive.ResumableUploadOptions());
+        await _api!.files.create(meta, uploadMedia: drive.Media(f.openRead(), len), uploadOptions: drive.ResumableUploadOptions());
         final done = _done..add(m['id'].toString());
         Store.i.d['driveDone'] = done.toList();
         await Store.i.save();
       }
-      if (records || todo.isNotEmpty) await _uploadRecords(api, root);
+      if (records || todo.isNotEmpty) await _uploadRecords(_api!, root);
       status = 'All backed up ✓';
       lastError = null;
       await Store.i.setSetting('driveLast', DateTime.now().millisecondsSinceEpoch);
-    } catch (e) {
-      lastError = '$e';
-      status = 'Will retry automatically';
     }
-    busy = false;
-    notifyListeners();
   }
 
   Future<void> _uploadRecords(drive.DriveApi api, String root) async {
