@@ -97,7 +97,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver, Si
     c = null;
     if (mounted) setState(() {});
     await old?.dispose();
-    final ctl = CameraController(cams[camIdx], ResolutionPreset.high, enableAudio: true, imageFormatGroup: ImageFormatGroup.nv21);
+    final ctl = CameraController(cams[camIdx], ResolutionPreset.veryHigh, enableAudio: true, imageFormatGroup: ImageFormatGroup.nv21);
     await ctl.initialize();
     try {
       await ctl.setFlashMode(flash);

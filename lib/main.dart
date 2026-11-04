@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'call.dart';
 import 'chat.dart';
 import 'chat_bg.dart';
+import 'drive_backup.dart';
 import 'feed_alarm.dart';
 import 'games/games_page.dart';
 import 'moments.dart';
@@ -38,6 +39,7 @@ Future<void> main() async {
   try {
     await Chat.i.init();
   } catch (_) {}
+  unawaited(DriveBackup.i.init());
   try {
     await Moments.init();
   } catch (_) {}

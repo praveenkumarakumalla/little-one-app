@@ -1107,7 +1107,7 @@ class _ChatPageState extends State<ChatPage> {
             title: const Text('Photos & videos'),
             onTap: () async {
               Navigator.pop(c);
-              final l = await ImagePicker().pickMultipleMedia(maxWidth: 2048, maxHeight: 2048, imageQuality: 82);
+              final l = await ImagePicker().pickMultipleMedia();
               if (l.isNotEmpty) await _sendPaths(l.map((x) => x.path).toList());
             },
           ),
@@ -1116,7 +1116,7 @@ class _ChatPageState extends State<ChatPage> {
             title: const Text('Take a photo'),
             onTap: () async {
               Navigator.pop(c);
-              final x = await ImagePicker().pickImage(source: ImageSource.camera, maxWidth: 2048, maxHeight: 2048, imageQuality: 82);
+              final x = await ImagePicker().pickImage(source: ImageSource.camera);
               if (x != null) await _sendPaths([x.path]);
             },
           ),

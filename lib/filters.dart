@@ -338,7 +338,7 @@ Future<String> renderPhoto(String srcPath, PhotoFilter f, Sticker s, List<FaceBo
   final out = await rec.endRecording().toImage(tw.round(), th.round());
   final bd = await out.toByteData(format: ui.ImageByteFormat.rawRgba);
   final im = img.Image.fromBytes(width: out.width, height: out.height, bytes: bd!.buffer, numChannels: 4, order: img.ChannelOrder.rgba);
-  final jpg = img.encodeJpg(im, quality: 90);
+  final jpg = img.encodeJpg(im, quality: 100);
   final dir = Directory('${(await getApplicationDocumentsDirectory()).path}/memories');
   if (!dir.existsSync()) dir.createSync(recursive: true);
   final file = File('${dir.path}/${Store.newId()}_${f.id}.jpg');

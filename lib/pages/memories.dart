@@ -56,7 +56,7 @@ class _MemoriesPageState extends State<MemoriesPage> {
   int cat = 0; // 0 = photos, 1 = videos
 
   Future<void> _add(BuildContext context) async {
-    final picked = await ImagePicker().pickMultipleMedia(imageQuality: 85, maxWidth: 2400);
+    final picked = await ImagePicker().pickMultipleMedia() // originals, 100% quality;
     if (picked.isEmpty || !context.mounted) return;
     final cap = TextEditingController();
     String tag = '';

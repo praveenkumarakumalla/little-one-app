@@ -1,6 +1,7 @@
 import 'package:file_selector/file_selector.dart' show openFile, XTypeGroup;
 import 'package:flutter/material.dart';
 
+import '../drive_backup.dart';
 import '../updater.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -99,6 +100,54 @@ class _ProfilePageState extends State<ProfilePage> {
           subtitle: const Text('The app also checks by itself and asks you to update'),
           onTap: () => Updater.check(context, manual: true),
         ),
+        const SizedBox(height: 8),
+        ListenableBuilder(
+          listenable: DriveBackup.i,
+          builder: (context, _) {
+            final b = DriveBackup.i;
+            final last = Store.i.settings['driveLast'];
+            final when = last is int ? DateTime.fromMillisecondsSinceEpoch(last) : null;
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('☁️ Google Drive auto-backup', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text(b.enabled
+                      ? 'Connected: ${b.email ?? ''}\nEvery photo & video (original quality) and all notes/records go to the "Little One – ${Store.i.babyName}" folder automatically.'
+                      : 'Connect ${Store.i.babyName}\'s Google account. Every new photo & video is saved to Drive in original quality, plus notes, events, growth and vaccines.'),
+                  if (b.enabled) ...[
+                    const SizedBox(height: 6),
+                    Text('✅ ${b.uploaded} saved · ⏳ ${b.pending} waiting${when == null ? '' : ' · last ${when.day}/${when.month} ${when.hour.toString().padLeft(2, '0')}:${when.minute.toString().padLeft(2, '0')}'}'),
+                    if (b.status.isNotEmpty) Text(b.status, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    if (b.lastError != null) Text(b.lastError!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: Colors.redAccent)),
+                  ],
+                  const SizedBox(height: 8),
+                  Wrap(spacing: 8, children: [
+                    if (!b.enabled)
+                      FilledButton.icon(
+                        icon: const Icon(Icons.add_to_drive),
+                        label: const Text('Connect Google Drive'),
+                        onPressed: () async {
+                          final err = await b.connect();
+                          if (err != null && context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+                        },
+                      )
+                    else ...[
+                      FilledButton.icon(
+                        icon: b.busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.cloud_upload),
+                        label: const Text('Back up now'),
+                        onPressed: b.busy ? null : () => b.sweep(records: true),
+                      ),
+                      TextButton(onPressed: b.disconnect, child: const Text('Disconnect')),
+                    ],
+                  ]),
+                ]),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 16),
         const Text('Backup', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
         const Text('Save feeds, notes, vaccines and events to Google Drive or WhatsApp, so nothing is lost if the phone changes. Photos stay in the phone gallery.'),
         const SizedBox(height: 8),
