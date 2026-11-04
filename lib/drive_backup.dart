@@ -88,8 +88,7 @@ class DriveBackup extends ChangeNotifier {
   Future<void> _connect({bool fresh = false}) async {
     if (fresh) {
       try {
-        final old = (await account?.authentication)?.accessToken;
-        if (old != null) await _gsi.clearAuthCache(token: old);
+        await account?.clearAuthCache();
       } catch (_) {}
       account = await _gsi.signInSilently(reAuthenticate: true) ?? account;
     }
