@@ -64,11 +64,11 @@ class Updater {
     if (!manual && now - last < 20 * 60 * 1000) return; // every time the app is opened (at most every 20 min)
     _running = true;
     try {
-      final mine0 = int.tryParse((await PackageInfo.fromPlatform()).buildNumber) ?? 0;
+      final mine0 = (int.tryParse((await PackageInfo.fromPlatform()).buildNumber) ?? 0) % 1000; // split-per-abi adds 1000/2000 to the code
       if (channel != 'trial' && await _installReady(context, mine0)) return;
       await Store.i.setSetting('updCheck', now);
       final info = await PackageInfo.fromPlatform();
-      final mine = int.tryParse(info.buildNumber) ?? 0;
+      final mine = (int.tryParse(info.buildNumber) ?? 0) % 1000; // split-per-abi adds 1000/2000 to the code
       final r = await http.get(Uri.parse(channel == 'trial' ? _list : _api), headers: {'Accept': 'application/vnd.github+json'}).timeout(const Duration(seconds: 15));
       if (r.statusCode != 200) throw 'GitHub said ${r.statusCode}';
       final body = jsonDecode(r.body);

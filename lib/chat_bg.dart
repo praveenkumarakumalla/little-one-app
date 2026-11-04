@@ -144,7 +144,7 @@ Future<void> backgroundUpdate({bool force = false}) async {
   await prefs.setInt('updBgAt', now);
   final info = await PackageInfo.fromPlatform();
   if (info.packageName.contains('trial')) return; // the trial app updates on its own channel
-  final mine = int.tryParse(info.buildNumber) ?? 0;
+  final mine = (int.tryParse(info.buildNumber) ?? 0) % 1000; // split-per-abi adds 1000/2000 to the code
   final r = await http.get(Uri.parse('https://api.github.com/repos/praveenkumarakumalla/little-one-app/releases/latest'), headers: {'Accept': 'application/vnd.github+json'}).timeout(const Duration(seconds: 20));
   if (r.statusCode != 200) return;
   final j = jsonDecode(r.body) as Map;
