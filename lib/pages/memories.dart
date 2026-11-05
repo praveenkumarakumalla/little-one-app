@@ -1,8 +1,10 @@
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart' show openFiles, XTypeGroup;
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
@@ -14,6 +16,10 @@ import 'camera.dart';
 import '../store.dart';
 
 const milestones = ['', 'First smile', 'First bath', 'Namakaranam', 'Barasala', 'Ashlesha shanti', 'Annaprasana', 'First tooth', 'First word', 'First steps', 'Aksharabhyasam', 'Birthday', 'Festival'];
+const docTypes = ['', 'Birth certificate', 'Aadhaar', 'Hospital / discharge', 'Vaccination card', 'Prescription', 'Lab report', 'Insurance', 'Bank / savings', 'Jatakam', 'Other'];
+
+/// 0 = photo, 1 = video, 2 = document (PDF etc.)
+int memKind(Map m) => m['doc'] == true ? 2 : m['video'] == true ? 1 : 0;
 bool isVideo(String p) => RegExp(r'\.(mp4|mov|3gp|mkv|webm)$', caseSensitive: false).hasMatch(p);
 
 /// Saves photos/videos to the phone's Gallery (album "Little One"). Returns how many were saved.
@@ -24,7 +30,7 @@ Future<int> saveToGallery(BuildContext context, List<Map<String, dynamic>> items
   var n = 0;
   for (final m in items) {
     final p = m['path']?.toString();
-    if (p == null || !File(p).existsSync()) continue;
+    if (p == null || m['doc'] == true || !File(p).existsSync()) continue;
     try {
       m['video'] == true ? await Gal.putVideo(p, album: 'Little One') : await Gal.putImage(p, album: 'Little One');
       n++;
@@ -53,9 +59,44 @@ class MemoriesPage extends StatefulWidget {
 
 class _MemoriesPageState extends State<MemoriesPage> {
   final Set<String> sel = {};
-  int cat = 0; // 0 = photos, 1 = videos
+  int cat = 0; // 0 = photos, 1 = videos, 2 = documents
+
+  /// Documents: PDFs (and scans/photos of papers) kept exactly as they are.
+  Future<void> _addDocs(BuildContext context) async {
+    final picked = await openFiles(acceptedTypeGroups: [const XTypeGroup(label: 'Documents', extensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'doc', 'docx'], mimeTypes: ['application/pdf', 'image/*', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])]);
+    if (picked.isEmpty || !context.mounted) return;
+    final cap = TextEditingController(text: picked.length == 1 ? picked.first.name.replaceAll(RegExp(r'\.[^.]+$'), '') : '');
+    String tag = '';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, set) => AlertDialog(
+          title: Text('Add ${picked.length} document${picked.length > 1 ? 's' : ''}'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: cap, decoration: const InputDecoration(labelText: 'Name', hintText: 'Birth certificate')),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: tag,
+              decoration: const InputDecoration(labelText: 'Type'),
+              items: docTypes.map((m) => DropdownMenuItem(value: m, child: Text(m.isEmpty ? 'None' : m))).toList(),
+              onChanged: (v) => set(() => tag = v ?? ''),
+            ),
+          ]),
+          actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Save'))],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    for (final x in picked) {
+      final path = await Store.keepFile(x.path, 'documents');
+      final name = cap.text.trim().isEmpty || picked.length > 1 ? x.name.replaceAll(RegExp(r'\.[^.]+$'), '') : cap.text.trim();
+      await Store.i.addItem('memories', {'id': Store.newId(), 'path': path, 'video': false, 'doc': true, 'caption': name, 'tag': tag, 'date': ymd(DateTime.now())});
+    }
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('📄 ${picked.length} document${picked.length > 1 ? 's' : ''} saved')));
+  }
 
   Future<void> _add(BuildContext context) async {
+    if (cat == 2) return _addDocs(context);
     final picked = await ImagePicker().pickMultipleMedia(); // originals, 100% quality;
     if (picked.isEmpty || !context.mounted) return;
     final cap = TextEditingController();
@@ -94,18 +135,25 @@ class _MemoriesPageState extends State<MemoriesPage> {
       listenable: Listenable.merge([Store.i, Chat.i]),
       builder: (context, _) {
         final all = Store.i.list('memories')..sort((a, b) => (b['date'] ?? '').toString().compareTo((a['date'] ?? '').toString()));
-        final nPhotos = all.where((m) => m['video'] != true).length, nVideos = all.length - nPhotos;
-        final items = all.where((m) => (m['video'] == true) == (cat == 1)).toList();
+        final nPhotos = all.where((m) => memKind(m) == 0).length, nVideos = all.where((m) => memKind(m) == 1).length, nDocs = all.where((m) => memKind(m) == 2).length;
+        final items = all.where((m) => memKind(m) == cat).toList();
         final groups = <String, List<Map<String, dynamic>>>{};
         for (final m in items) {
           groups.putIfAbsent((m['date'] ?? '').toString().substring(0, 7), () => []).add(m);
         }
         final chosen = items.where((m) => sel.contains(m['id'].toString())).toList();
-        var photos = 0, videos = 0, bytes = 0;
+        var photos = 0, videos = 0, docs = 0, bytes = 0;
         for (final m in all) {
           final p = m['path']?.toString();
           if (p == null) continue;
-          m['video'] == true ? videos++ : photos++;
+          switch (memKind(m)) {
+            case 2:
+              docs++;
+            case 1:
+              videos++;
+            default:
+              photos++;
+          }
           try {
             bytes += File(p).lengthSync();
           } catch (_) {}
@@ -117,14 +165,14 @@ class _MemoriesPageState extends State<MemoriesPage> {
               title: Text(chosen.isEmpty ? 'Tap memories to select' : '${chosen.length} selected'),
               actions: [
                 IconButton(tooltip: 'Select all', icon: const Icon(Icons.select_all), onPressed: () => setState(() => sel.addAll(items.where((m) => m['path'] != null).map((m) => m['id'].toString())))),
-                IconButton(tooltip: 'Save to Gallery', icon: const Icon(Icons.download), onPressed: () async {
+                if (cat != 2) IconButton(tooltip: 'Save to Gallery', icon: const Icon(Icons.download), onPressed: () async {
                   await saveToGallery(context, chosen);
                   if (mounted) setState(sel.clear);
                 }),
                 IconButton(tooltip: 'Share', icon: const Icon(Icons.share), onPressed: () => shareMemories(chosen)),
               ],
             ),
-            body: _grid(context, groups),
+            body: cat == 2 ? ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 90), children: items.map((m) => _docTile(context, m)).toList()) : _grid(context, groups),
           );
         }
         return Scaffold(
@@ -144,31 +192,32 @@ class _MemoriesPageState extends State<MemoriesPage> {
               icon: Icon(Chat.i.paired ? Icons.cloud_sync_outlined : Icons.cloud_off_outlined),
               onPressed: () => _syncInfo(context),
             ),IconButton(tooltip: 'Camera with filters', icon: const Icon(Icons.camera_alt_outlined), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CameraPage())))]),
-          floatingActionButton: FloatingActionButton.extended(onPressed: () => _add(context), icon: const Icon(Icons.add_a_photo), label: const Text('Add')),
+          floatingActionButton: FloatingActionButton.extended(onPressed: () => _add(context), icon: Icon(cat == 2 ? Icons.note_add : Icons.add_a_photo), label: Text(cat == 2 ? 'Add PDF' : 'Add')),
           body: items.isEmpty
               ? ListView(padding: const EdgeInsets.all(12), children: [
                   if (!Chat.i.paired) _connectBanner(context),
-                  _cats(nPhotos, nVideos),
-                  Padding(padding: const EdgeInsets.all(32), child: Text(cat == 1 ? 'No videos yet. Tap Add to pick videos.' : 'Her first photos will live here, grouped by month. Tap Add.', textAlign: TextAlign.center)),
+                  _cats(nPhotos, nVideos, nDocs),
+                  Padding(padding: const EdgeInsets.all(32), child: Text(cat == 2 ? 'Keep her documents safe here – birth certificate, Aadhaar, hospital papers, vaccination card…\nTap "Add PDF".' : cat == 1 ? 'No videos yet. Tap Add to pick videos.' : 'Her first photos will live here, grouped by month. Tap Add.', textAlign: TextAlign.center)),
                 ])
               : ListView(padding: const EdgeInsets.fromLTRB(12, 0, 12, 90), children: [
                   if (!Chat.i.paired) _connectBanner(context),
-                  _cats(nPhotos, nVideos),
+                  _cats(nPhotos, nVideos, nDocs),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
-                    child: Text('📸 $photos photos · 🎬 $videos videos · 💾 ${_mb(bytes)} on this phone\nTap to watch like reels · long-press to select', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7))),
+                    child: Text('📸 $photos photos · 🎬 $videos videos · 📄 $docs docs · 💾 ${_mb(bytes)} on this phone\n${cat == 2 ? 'Tap to open · long-press to select' : 'Tap to watch like reels · long-press to select'}', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7))),
                   ),
-                  ..._sections(context, groups),
+                  if (cat == 2) const SizedBox(height: 8),
+                  if (cat == 2) ...items.map((m) => _docTile(context, m)) else ..._sections(context, groups),
                 ]),
         );
       },
     );
   }
 
-  Widget _cats(int nPhotos, int nVideos) => Padding(
+  Widget _cats(int nPhotos, int nVideos, int nDocs) => Padding(
         padding: const EdgeInsets.only(top: 8),
         child: Row(children: [
-          for (final c in [(0, '📸 Photos', nPhotos), (1, '🎬 Videos', nVideos)]) ...[
+          for (final c in [(0, '📸 Photos', nPhotos), (1, '🎬 Videos', nVideos), (2, '📄 Docs', nDocs)]) ...[
             Expanded(
               child: GestureDetector(
                 onTap: () => setState(() {
@@ -188,7 +237,7 @@ class _MemoriesPageState extends State<MemoriesPage> {
                 ),
               ),
             ),
-            if (c.$1 == 0) const SizedBox(width: 10),
+            if (c.$1 < 2) const SizedBox(width: 8),
           ],
         ]),
       );
@@ -253,6 +302,82 @@ class _MemoriesPageState extends State<MemoriesPage> {
     if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$n memories shared with the family 💖')));
   }
 
+  Widget _docTile(BuildContext context, Map<String, dynamic> m) {
+    final id = m['id'].toString(), picked = sel.contains(id);
+    final p = m['path']?.toString();
+    final ext = (p ?? m['fname'] ?? '').toString().split('.').last.toLowerCase();
+    var size = '';
+    try {
+      if (p != null) size = _mb(File(p).lengthSync());
+    } catch (_) {}
+    final sub = [if ((m['tag'] ?? '').toString().isNotEmpty) m['tag'], m['date'] ?? '', if (size.isNotEmpty) size, if (m['from'] != null) '👤 ${m['from']}'].join(' · ');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: picked ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.18) : Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        child: ListTile(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          leading: Container(
+            width: 46,
+            height: 46,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: ext == 'pdf' ? const Color(0xFFFFE1E1) : const Color(0xFFE6DAFB), borderRadius: BorderRadius.circular(12)),
+            child: p == null
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5))
+                : Text(ext == 'pdf' ? '📕' : ext.startsWith('doc') ? '📘' : '🖼️', style: const TextStyle(fontSize: 24)),
+          ),
+          title: Text((m['caption'] ?? '').toString().isEmpty ? (m['fname'] ?? 'Document').toString() : m['caption'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: Text(p == null ? 'From ${m['from'] ?? 'family'} · tap to download' : sub, style: const TextStyle(fontSize: 12)),
+          trailing: picked
+              ? const Icon(Icons.check_circle)
+              : p == null
+                  ? null
+                  : PopupMenuButton<String>(
+                      onSelected: (v) async {
+                        if (v == 'share') await shareMemories([m]);
+                        if (v == 'del' && context.mounted) {
+                          final yes = await showDialog<bool>(
+                            context: context,
+                            builder: (d) => AlertDialog(
+                              title: const Text('Delete this document?'),
+                              content: const Text('It is removed from this phone. The copy in Google Drive stays.'),
+                              actions: [TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Delete'))],
+                            ),
+                          );
+                          if (yes == true) {
+                            await Store.i.removeItem('memories', id);
+                            try {
+                              File(p).deleteSync();
+                            } catch (_) {}
+                          }
+                        }
+                      },
+                      itemBuilder: (_) => const [PopupMenuItem(value: 'share', child: Text('📤 Share')), PopupMenuItem(value: 'del', child: Text('🗑️ Delete'))],
+                    ),
+          onLongPress: p == null ? null : () => setState(() => sel..remove('_')..add(id)),
+          onTap: () async {
+            if (p == null) {
+              await Chat.i.downloadMemory(id);
+              return;
+            }
+            if (sel.isNotEmpty) {
+              setState(() {
+                sel.remove('_');
+                picked ? sel.remove(id) : sel.add(id);
+              });
+              return;
+            }
+            final r = await OpenFilex.open(p);
+            if (r.type != ResultType.done && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No app to open this file – install a PDF viewer or use Share')));
+            }
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _tile(BuildContext context, Map<String, dynamic> m) {
     if (m['path'] == null) {
       return GestureDetector(
@@ -284,7 +409,7 @@ class _MemoriesPageState extends State<MemoriesPage> {
           });
           return;
         }
-        final list = Store.i.list('memories').where((x) => x['path'] != null && (x['video'] == true) == (cat == 1)).toList()
+        final list = Store.i.list('memories').where((x) => x['path'] != null && memKind(x) == cat).toList()
           ..sort((a, b) => (b['date'] ?? '').toString().compareTo((a['date'] ?? '').toString()));
         final at = list.indexWhere((x) => x['id'] == m['id']);
         Navigator.push(context, MaterialPageRoute(builder: (_) => ReelsPage(items: list, start: at < 0 ? 0 : at)));

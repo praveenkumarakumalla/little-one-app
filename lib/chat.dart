@@ -181,6 +181,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
       'tag': m['tag'] ?? '',
       'date': m['date'] ?? ymd(DateTime.now()),
       'video': m['video'] == true,
+      if (m['doc'] == true) 'doc': true,
       if (m['filter'] != null) 'filter': m['filter'],
       'fname': f.path.split('/').last,
       'size': size,
@@ -226,6 +227,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
         if (parts > 1) 'urls': urls,
         if (parts > 1) 'parts': parts,
         'video': m['video'] == true,
+        if (m['doc'] == true) 'doc': true,
         'caption': m['caption'] ?? '',
         'tag': m['tag'] ?? '',
         'date': m['date'] ?? ymd(DateTime.now()),
@@ -234,7 +236,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
         'from': m['name'] ?? 'Family',
         'remote': true,
       });
-      if (!appVisible) unawaited(ChatNotify.show('mem_$id', (m['name'] ?? 'Family').toString(), '🖼️ added a new memory${(m['caption'] ?? '').toString().isNotEmpty ? ': ${m['caption']}' : ''}'));
+      if (!appVisible) unawaited(ChatNotify.show('mem_$id', (m['name'] ?? 'Family').toString(), '${m['doc'] == true ? '📄 added a document' : '🖼️ added a new memory'}${(m['caption'] ?? '').toString().isNotEmpty ? ': ${m['caption']}' : ''}'));
     }
     Store.i.d['memories'] = list;
     await Store.i.save();

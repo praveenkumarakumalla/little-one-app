@@ -140,11 +140,12 @@ class DriveBackup extends ChangeNotifier {
     return id;
   }
 
-  Future<(String, String, String)> _folders() async {
+  Future<(String, String, String, String)> _folders() async {
     final root = await _folder('Little One – ${Store.i.babyName}', null, 'driveRoot');
     final photos = await _folder('Photos', root, 'drivePhotos');
     final videos = await _folder('Videos', root, 'driveVideos');
-    return (root, photos, videos);
+    final docs = await _folder('Documents', root, 'driveDocs');
+    return (root, photos, videos, docs);
   }
 
   /// Upload everything not in Drive yet (memories first, then the records file if it changed).
@@ -178,7 +179,7 @@ class DriveBackup extends ChangeNotifier {
       account ??= await _gsi.signInSilently();
       if (account == null) throw 'Signed out – tap Connect again';
       if (_api == null || DateTime.now().difference(_connectedAt).inMinutes > 40) await _connect(fresh: _api != null);
-      final (root, photos, videos) = await _folders();
+      final (root, photos, videos, docs) = await _folders();
       final todo = Store.i.list('memories').where((m) => m['path'] != null && !_done.contains(m['id'].toString())).toList();
       var n = 0;
       for (final m in todo) {
@@ -187,10 +188,13 @@ class DriveBackup extends ChangeNotifier {
         if (DateTime.now().difference(_connectedAt).inMinutes > 40) await _connect(fresh: true);
         status = 'Uploading ${++n} of ${todo.length}…';
         notifyListeners();
-        final name = '${m['date'] ?? ''} ${(m['caption'] ?? '').toString().trim()} ${f.path.split('/').last}'.trim();
+        final fn = f.path.split('/').last.replaceFirst(RegExp(r'^[a-z0-9]+_'), ''); // drop our internal id prefix
+        final name = m['doc'] == true && (m['caption'] ?? '').toString().trim().isNotEmpty
+            ? '${m['caption'].toString().trim()}.${fn.split('.').last}'
+            : '${m['date'] ?? ''} ${(m['caption'] ?? '').toString().trim()} $fn'.trim();
         final meta = drive.File()
           ..name = name.length > 120 ? name.substring(name.length - 120) : name
-          ..parents = [m['video'] == true ? videos : photos]
+          ..parents = [m['doc'] == true ? docs : m['video'] == true ? videos : photos]
           ..description = [if ((m['caption'] ?? '').toString().isNotEmpty) m['caption'], if ((m['tag'] ?? '').toString().isNotEmpty) m['tag'], if (m['from'] != null) 'by ${m['from']}'].join(' · ');
         final len = await f.length();
         await _api!.files.create(meta, uploadMedia: drive.Media(f.openRead(), len), uploadOptions: drive.ResumableUploadOptions());
