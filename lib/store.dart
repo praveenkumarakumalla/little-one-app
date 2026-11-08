@@ -25,7 +25,13 @@ class Store extends ChangeNotifier {
     }
     d.putIfAbsent('profile', () => <String, dynamic>{});
     if ((d['profile'] as Map).isEmpty) {
-      d['profile'] = <String, dynamic>{'name': 'Chinnari', 'birthDate': '2026-10-06', 'birthTime': '18:18', 'place': 'Nellore'};
+      d['profile'] = <String, dynamic>{'name': 'Devanshi', 'birthDate': '2026-10-06', 'birthTime': '18:18', 'place': 'Nellore'};
+    }
+    // her real name is Devanshi now (Chinnari was the pet name) – fix phones still on the old default, once
+    if (d['nameFix1'] != true) {
+      final p = d['profile'] as Map;
+      if ((p['name'] ?? '').toString().trim() == 'Chinnari') p['name'] = 'Devanshi';
+      d['nameFix1'] = true;
     }
     d.putIfAbsent('feeds', () => <dynamic>[]);
     d.putIfAbsent('nappies', () => <dynamic>[]);
