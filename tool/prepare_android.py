@@ -144,12 +144,11 @@ if os.path.exists(t) and "MyApp" in read(t): os.remove(t)
 print("prepare_android: done")
 
 # Use Gradle's own download server (the GitHub mirror Flutter picks sometimes times out with 504).
-import pathlib as _pl, re as _re
-_w = _pl.Path('android/gradle/wrapper/gradle-wrapper.properties')
-if _w.exists():
-    _t = _w.read_text()
-    _t2 = _re.sub(r'https\\?://github\.com/gradle/gradle-distributions/releases/download/v([0-9.]+)/gradle-([0-9.]+)-(all|bin)\.zip',
-                  r'https\\://services.gradle.org/distributions/gradle-\2-\3.zip', _t)
-    if _t2 != _t:
-        _w.write_text(_t2)
-        print('gradle wrapper -> services.gradle.org')
+_w = os.path.join(ROOT, 'android', 'gradle', 'wrapper', 'gradle-wrapper.properties')
+if os.path.exists(_w):
+    _t = read(_w)
+    _t2 = re.sub(r'distributionUrl=.*gradle-([0-9.]+)-(all|bin)\.zip', lambda m: 'distributionUrl=https\\://services.gradle.org/distributions/gradle-%s-%s.zip' % (m.group(1), m.group(2)), _t)
+    write(_w, _t2)
+    print('gradle wrapper:', [l for l in _t2.splitlines() if 'distributionUrl' in l])
+else:
+    print('gradle wrapper properties not found at', _w)
