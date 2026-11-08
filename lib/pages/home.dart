@@ -134,7 +134,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())),
           onLongPress: () {
             HapticFeedback.heavyImpact();
-            Navigator.push(context, PageRouteBuilder(transitionDuration: const Duration(milliseconds: 700), pageBuilder: (_, __, ___) => const OurWorldPage(), transitionsBuilder: (_, a, __, ch) => FadeTransition(opacity: a, child: ch)));
+            openOurWorld();
           },
           child: const Padding(padding: EdgeInsets.all(12), child: Text('👶', style: TextStyle(fontSize: 24))),
         ),
