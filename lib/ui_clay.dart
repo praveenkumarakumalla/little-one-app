@@ -7,15 +7,15 @@ import 'store.dart';
 
 /// Clay theme (soft pink + deep indigo + off-white, puffy rounded cards).
 class K {
-  static const indigo = Color(0xFF9478D4); // lavender (main colour)
-  static const deep = Color(0xFF6F55B0); // deep lavender
-  static const violet = Color(0xFFC3AEF0);
-  static const pink = Color(0xFFE6DAFB); // light lavender
-  static const pinkSoft = Color(0xFFF3ECFD); // lavender milk
+  static const indigo = Color(0xFFEC86AB); // lavender (main colour)
+  static const deep = Color(0xFFCF5F8A); // deep lavender
+  static const violet = Color(0xFFFFC9AE);
+  static const pink = Color(0xFFFFE2EC); // light lavender
+  static const pinkSoft = Color(0xFFFFF2F6); // lavender milk
   static const card = Color(0xFFFFFBF6); // milk
-  static const bg = Color(0xFFFFF4EA); // cream
-  static const ink = Color(0xFF4E3B5C); // plum
-  static const muted = Color(0xFF9A8AA6);
+  static const bg = Color(0xFFFFFAF6); // cream
+  static const ink = Color(0xFF4A3442); // plum
+  static const muted = Color(0xFF9E8792);
   static const good = Color(0xFF2EAE7A);
   static const warn = Color(0xFFE0861F);
   static const bad = Color(0xFFD9434E);

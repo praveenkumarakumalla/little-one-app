@@ -264,16 +264,16 @@ class _MemoriesPageState extends State<MemoriesPage> {
   Widget _connectBanner(BuildContext context) => Padding(
         padding: const EdgeInsets.only(top: 4, bottom: 6),
         child: ClayButton(
-          color: const Color(0xFFDCCBFF),
-          color2: const Color(0xFFC8E0FF),
+          color: const Color(0xFFFFDDE8),
+          color2: const Color(0xFFD6F2E6),
           onTap: () => _syncInfo(context),
           child: const Row(children: [
             Text('👨‍👩‍👧', style: TextStyle(fontSize: 30)),
             SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Connect family gallery', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF2E2563))),
-                Text('One time: enter your family code. Then everyone\'s memories appear on every family phone.', style: TextStyle(fontSize: 12, color: Color(0xFF2E2563))),
+                Text('Connect family gallery', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF4A3442))),
+                Text('One time: enter your family code. Then everyone\'s memories appear on every family phone.', style: TextStyle(fontSize: 12, color: Color(0xFF4A3442))),
               ]),
             ),
           ]),
@@ -322,7 +322,7 @@ class _MemoriesPageState extends State<MemoriesPage> {
             width: 46,
             height: 46,
             alignment: Alignment.center,
-            decoration: BoxDecoration(color: ext == 'pdf' ? const Color(0xFFFFE1E1) : const Color(0xFFE6DAFB), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: ext == 'pdf' ? const Color(0xFFFFE1E1) : const Color(0xFFFFE2EC), borderRadius: BorderRadius.circular(12)),
             child: p == null
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5))
                 : Text(ext == 'pdf' ? '📕' : ext.startsWith('doc') ? '📘' : '🖼️', style: const TextStyle(fontSize: 24)),
@@ -474,7 +474,7 @@ class _ReelsPageState extends State<ReelsPage> {
             for (final e in memEmojis)
               GestureDetector(
                 onTap: () => Navigator.pop(c, e),
-                child: Container(width: 58, height: 58, alignment: Alignment.center, decoration: BoxDecoration(color: const Color(0xFFF3ECFD), borderRadius: BorderRadius.circular(18)), child: Text(e, style: const TextStyle(fontSize: 32))),
+                child: Container(width: 58, height: 58, alignment: Alignment.center, decoration: BoxDecoration(color: const Color(0xFFFFF2F6), borderRadius: BorderRadius.circular(18)), child: Text(e, style: const TextStyle(fontSize: 32))),
               ),
           ]),
         ),
@@ -686,7 +686,7 @@ class _ReelMediaState extends State<_ReelMedia> {
       child: Stack(alignment: Alignment.center, children: [
         Center(child: AspectRatio(aspectRatio: c.value.aspectRatio, child: ColorFiltered(colorFilter: ColorFilter.matrix(filterById(m['filter']?.toString()).m), child: VideoPlayer(c)))),
         if (paused) const Icon(Icons.play_arrow_rounded, color: Colors.white70, size: 90),
-        Positioned(left: 0, right: 0, bottom: 0, child: VideoProgressIndicator(c, allowScrubbing: true, colors: const VideoProgressColors(playedColor: Color(0xFFC3AEF0)))),
+        Positioned(left: 0, right: 0, bottom: 0, child: VideoProgressIndicator(c, allowScrubbing: true, colors: const VideoProgressColors(playedColor: Color(0xFFFFC9AE)))),
       ]),
     );
   }

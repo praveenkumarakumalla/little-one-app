@@ -13,6 +13,7 @@ import '../watch.dart';
 import '../talk.dart';
 import 'cries.dart';
 import 'fun.dart';
+import 'our_world.dart';
 import 'profile.dart';
 import 'voices.dart';
 
@@ -25,12 +26,12 @@ class _Pal {
 _Pal _pal(BuildContext c, String name) {
   final dark = Theme.of(c).brightness == Brightness.dark;
   const light = {
-    'rose': _Pal(Color(0xFFF3ECFD), Color(0xFFE9DEFB), Color(0xFF4E3B5C)),
-    'lilac': _Pal(Color(0xFF9478D4), Color(0xFFAE95E6), Color(0xFFFFFFFF)),
-    'mint': _Pal(Color(0xFFFFFBF6), Color(0xFFFFF1E4), Color(0xFF4E3B5C)),
-    'peach': _Pal(Color(0xFFFFF0E2), Color(0xFFFCE5D6), Color(0xFF5A4152)),
-    'sky': _Pal(Color(0xFFE6DAFB), Color(0xFFDACCF7), Color(0xFF4E3B5C)),
-    'coral': _Pal(Color(0xFF6F55B0), Color(0xFF9478D4), Color(0xFFFFFFFF)),
+    'rose': _Pal(Color(0xFFFFF2F6), Color(0xFFFFE4EE), Color(0xFF4A3442)), // baby pink
+    'lilac': _Pal(Color(0xFFDDF5EA), Color(0xFFC9EEDD), Color(0xFF2E4A3F)), // mint
+    'mint': _Pal(Color(0xFFFFFFFF), Color(0xFFFFF6EF), Color(0xFF4A3442)), // milk white
+    'peach': _Pal(Color(0xFFFFEFE3), Color(0xFFFFE1D1), Color(0xFF5A3E36)), // peach
+    'sky': _Pal(Color(0xFFE6F2FF), Color(0xFFD7E9FB), Color(0xFF33465A)), // baby blue
+    'coral': _Pal(Color(0xFFFFC7D8), Color(0xFFFFB3C9), Color(0xFF5A2440)), // strong pink
   };
   const night = light; // the clay theme is light only
   return (dark ? night : light)[name]!;
@@ -131,6 +132,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())),
+          onLongPress: () {
+            HapticFeedback.heavyImpact();
+            Navigator.push(context, PageRouteBuilder(transitionDuration: const Duration(milliseconds: 700), pageBuilder: (_, __, ___) => const OurWorldPage(), transitionsBuilder: (_, a, __, ch) => FadeTransition(opacity: a, child: ch)));
+          },
           child: const Padding(padding: EdgeInsets.all(12), child: Text('👶', style: TextStyle(fontSize: 24))),
         ),
       ),
@@ -217,7 +222,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.65), borderRadius: BorderRadius.circular(20)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (dot != null) ...[Container(width: 8, height: 8, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)), const SizedBox(width: 6)],
-          Text(t, style: const TextStyle(color: Color(0xFF4E3B5C), fontWeight: FontWeight.w700, fontSize: 13)),
+          Text(t, style: const TextStyle(color: Color(0xFF4A3442), fontWeight: FontWeight.w700, fontSize: 13)),
         ]),
       );
 
@@ -397,17 +402,59 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         await s.addTime('nappies');
         _snack('Nappy change logged 🧷');
       }, action: '＋'),
-      _tile(context, 'lilac', '🌤️', 'Woke up', 'last ${t(s.last('sleeps'))}', () async {
-        HapticFeedback.lightImpact();
-        await s.addTime('sleeps');
-        _snack('Wake-up logged 🌤️');
-      }, action: '＋'),
-      _tile(context, 'mint', w.on ? '🎧' : '🔇', 'Sleep watch', w.on ? 'Listening 🟢' : 'Off', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WatchPage()))),
-      _tile(context, 'sky', '📊', 'Cry tracker', '${s.countCries()} cries today', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CryHistoryPage()))),
-      _tile(context, 'peach', '🎙️', 'Baby voices', '${s.list('voices').length} saved', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VoicesPage()))),
       _tile(context, 'rose', '😂', 'Fun zone', 'Farts & translator', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FunPage()))),
       _tile(context, 'lilac', '🗣️', 'Talking baby', Talk.enabled ? 'On · every hour' : 'Off', () => _talkSheet(context)),
     ];
+    // less-used tools live behind "More" so Home stays simple
+    final more = ClayButton(
+      onTap: () => _moreSheet(context),
+      color: _pal(context, 'sky').a,
+      color2: _pal(context, 'sky').b,
+      radius: 22,
+      depth: 6,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(children: [
+        const Text('🧰', style: TextStyle(fontSize: 24)),
+        const SizedBox(width: 12),
+        Expanded(child: Text('More · sleep watch, cry tracker, baby voices${w.on ? ' · 🟢' : ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w800, color: _pal(context, 'sky').ink))),
+        Icon(Icons.expand_more_rounded, color: _pal(context, 'sky').ink),
+      ]),
+    );
+    return Column(children: [
+      _gridOf(tiles),
+      const SizedBox(height: 12),
+      more,
+    ]);
+  }
+
+  void _moreSheet(BuildContext context) {
+    final s = Store.i, w = SleepWatch.i;
+    String t(DateTime? d) => d == null ? '—' : hm(d);
+    void go(Widget p) {
+      Navigator.pop(context);
+      Navigator.push(context, MaterialPageRoute(builder: (_) => p));
+    }
+
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(leading: const Text('🌤️', style: TextStyle(fontSize: 26)), title: const Text('Woke up now'), subtitle: Text('last ${t(s.last('sleeps'))}'), onTap: () async {
+            Navigator.pop(c);
+            HapticFeedback.lightImpact();
+            await s.addTime('sleeps');
+            _snack('Wake-up logged 🌤️');
+          }),
+          ListTile(leading: Text(w.on ? '🎧' : '🔇', style: const TextStyle(fontSize: 26)), title: const Text('Sleep watch'), subtitle: Text(w.on ? 'Listening 🟢' : 'Off'), onTap: () => go(const WatchPage())),
+          ListTile(leading: const Text('📊', style: TextStyle(fontSize: 26)), title: const Text('Cry tracker'), subtitle: Text('${s.countCries()} cries today'), onTap: () => go(const CryHistoryPage())),
+          ListTile(leading: const Text('🎙️', style: TextStyle(fontSize: 26)), title: const Text('Baby voices'), subtitle: Text('${s.list('voices').length} saved'), onTap: () => go(const VoicesPage())),
+        ]),
+      ),
+    );
+  }
+
+  Widget _gridOf(List<Widget> tiles) {
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
@@ -614,13 +661,13 @@ class _GlowButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ClayButton(
         onTap: onTap,
-        color: const Color(0xFF9478D4),
-        color2: const Color(0xFFAE95E6),
+        color: const Color(0xFFEC86AB),
+        color2: const Color(0xFFF5A9C3),
         radius: 22,
         depth: 7,
         padding: const EdgeInsets.symmetric(vertical: 13),
         child: Column(children: [
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900, shadows: [Shadow(color: Color(0x556F55B0), offset: Offset(0, 1.5), blurRadius: 2)])),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900, shadows: [Shadow(color: Color(0x55CF5F8A), offset: Offset(0, 1.5), blurRadius: 2)])),
           Text(sub, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
         ]),
       );

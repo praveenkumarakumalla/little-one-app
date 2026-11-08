@@ -15,11 +15,11 @@ class GamesPage extends StatelessWidget {
   const GamesPage({super.key});
 
   static const games = [
-    ('chess', '♛', 'Chess 3D', 'Real 3D pieces · 3 themes · vs computer', Color(0xFFF3ECFD), Color(0xFFE6DAFB)),
-    ('chain', '💥', 'Chain Reaction', 'Glossy bubbles burst & chain · 2–4 players', Color(0xFFE6DAFB), Color(0xFFFDE4EA)),
-    ('ludo', '🎲', 'Ludo', '3D board · rolling dice · 2–4 players', Color(0xFFFFF0E2), Color(0xFFF3ECFD)),
-    ('snakes', '🐍', 'Snakes & Ladders', '3D snakes & ladders · 2–4 players', Color(0xFFFFFBF6), Color(0xFFE6DAFB)),
-    ('uno', '🃏', 'UNO', 'Card table · UNO button · 2–4 players', Color(0xFFE6DAFB), Color(0xFFF3ECFD)),
+    ('chess', '♛', 'Chess 3D', 'Real 3D pieces · 3 themes · vs computer', Color(0xFFFFF2F6), Color(0xFFFFE2EC)),
+    ('chain', '💥', 'Chain Reaction', 'Glossy bubbles burst & chain · 2–4 players', Color(0xFFFFE2EC), Color(0xFFFDE4EA)),
+    ('ludo', '🎲', 'Ludo', '3D board · rolling dice · 2–4 players', Color(0xFFFFF0E2), Color(0xFFFFF2F6)),
+    ('snakes', '🐍', 'Snakes & Ladders', '3D snakes & ladders · 2–4 players', Color(0xFFFFFBF6), Color(0xFFFFE2EC)),
+    ('uno', '🃏', 'UNO', 'Card table · UNO button · 2–4 players', Color(0xFFFFE2EC), Color(0xFFFFF2F6)),
     ('sheep', '🐑', 'Sheep Fight', 'Push the herd · 1 vs 1 or 2 vs 2', Color(0xFFFFF0E2), Color(0xFFFFFBF6)),
   ];
 
@@ -40,7 +40,7 @@ class GamesPage extends StatelessWidget {
             Text('${g.$2} ${g.$3}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
             const SizedBox(height: 12),
             ClayButton(
-              color: const Color(0xFFF3ECFD),
+              color: const Color(0xFFFFF2F6),
               onTap: () => Navigator.pop(c, 'local'),
               child: const Row(children: [
                 Text('📱', style: TextStyle(fontSize: 30)),
@@ -53,7 +53,7 @@ class GamesPage extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             ClayButton(
-              color: const Color(0xFFE6DAFB),
+              color: const Color(0xFFFFE2EC),
               onTap: () => Navigator.pop(c, 'create'),
               child: const Row(children: [
                 Text('🌐', style: TextStyle(fontSize: 30)),
@@ -174,12 +174,12 @@ class GamesPage extends StatelessWidget {
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(g.$3, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: Color(0xFF4E3B5C))),
+                    Text(g.$3, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: Color(0xFF4A3442))),
                     const SizedBox(height: 2),
                     Text(g.$4, style: const TextStyle(fontSize: 13, color: Color(0xFF7A6A88))),
                   ]),
                 ),
-                const Icon(Icons.play_circle_fill, size: 36, color: Color(0xFF4E3B5C)),
+                const Icon(Icons.play_circle_fill, size: 36, color: Color(0xFF4A3442)),
               ]),
             ),
           ),
