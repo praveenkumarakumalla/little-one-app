@@ -52,6 +52,9 @@ class Store extends ChangeNotifier {
     d.putIfAbsent('settings', () => <String, dynamic>{'interval': 150, 'alarm': true, 'sens': 18.0, 'wShh': true, 'wCry': true, 'wLull': true});
   }
 
+  /// Save without redrawing every screen (used by background jobs like the Drive backup).
+  Future<void> saveQuiet() => _prefs.setString('data', jsonEncode(d));
+
   Future<void> save() async {
     await _prefs.setString('data', jsonEncode(d));
     notifyListeners();

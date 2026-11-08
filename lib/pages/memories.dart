@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart' show openFiles, XTypeGroup;
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
@@ -19,6 +21,72 @@ const milestones = ['', 'First smile', 'First bath', 'Namakaranam', 'Barasala', 
 const docTypes = ['', 'Birth certificate', 'Aadhaar', 'Hospital / discharge', 'Vaccination card', 'Prescription', 'Lab report', 'Insurance', 'Bank / savings', 'Jatakam', 'Other'];
 
 /// 0 = photo, 1 = video, 2 = document (PDF etc.)
+/// Small grid thumbnails (360 px) made once per photo, so the grid never decodes 12 MP originals again.
+class Thumbs {
+  static Directory? _dir;
+  static final _have = <String, bool>{};
+  static final _queue = <(String, String)>[];
+  static bool _running = false;
+  static final ready = ValueNotifier<int>(0);
+
+  static File? get(String id, String path) {
+    final d = _dir;
+    if (d == null) {
+      _init();
+      return null;
+    }
+    final f = File('${d.path}/$id.png');
+    final ok = _have[id] ??= f.existsSync();
+    if (ok) return f;
+    if (!_queue.any((q) => q.$1 == id)) {
+      _queue.add((id, path));
+      _run();
+    }
+    return null;
+  }
+
+  static Future<void> _init() async {
+    if (_dir != null) return;
+    final d = Directory('${(await getApplicationSupportDirectory()).path}/thumbs');
+    if (!d.existsSync()) d.createSync(recursive: true);
+    _dir = d;
+    ready.value++;
+  }
+
+  static Future<void> _run() async {
+    if (_running) return;
+    _running = true;
+    while (_queue.isNotEmpty) {
+      final (id, path) = _queue.removeAt(0);
+      try {
+        final bytes = await File(path).readAsBytes();
+        final codec = await ui.instantiateImageCodec(bytes, targetWidth: 360);
+        final frame = await codec.getNextFrame();
+        final png = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+        frame.image.dispose();
+        if (png != null) await File('${_dir!.path}/$id.png').writeAsBytes(png.buffer.asUint8List());
+        _have[id] = png != null;
+      } catch (_) {
+        _have[id] = false; // keep using the original
+      }
+      if (_queue.isEmpty || _queue.length % 6 == 0) ready.value++;
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+    }
+    _running = false;
+  }
+}
+
+final _sizes = <String, int>{};
+
+/// File sizes are cached – reading 100s of file sizes on every redraw made Memories laggy.
+int fileSize(String p) => _sizes[p] ??= (() {
+      try {
+        return File(p).lengthSync();
+      } catch (_) {
+        return 0;
+      }
+    })();
+
 int memKind(Map m) => m['doc'] == true ? 2 : m['video'] == true ? 1 : 0;
 bool isVideo(String p) => RegExp(r'\.(mp4|mov|3gp|mkv|webm)$', caseSensitive: false).hasMatch(p);
 
@@ -132,7 +200,7 @@ class _MemoriesPageState extends State<MemoriesPage> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([Store.i, Chat.i]),
+      listenable: Listenable.merge([Store.i, Chat.i, Thumbs.ready]),
       builder: (context, _) {
         final all = Store.i.list('memories')..sort((a, b) => (b['date'] ?? '').toString().compareTo((a['date'] ?? '').toString()));
         final nPhotos = all.where((m) => memKind(m) == 0).length, nVideos = all.where((m) => memKind(m) == 1).length, nDocs = all.where((m) => memKind(m) == 2).length;
@@ -155,7 +223,7 @@ class _MemoriesPageState extends State<MemoriesPage> {
               photos++;
           }
           try {
-            bytes += File(p).lengthSync();
+            bytes += fileSize(p);
           } catch (_) {}
         }
         if (sel.isNotEmpty) {
@@ -308,7 +376,7 @@ class _MemoriesPageState extends State<MemoriesPage> {
     final ext = (p ?? m['fname'] ?? '').toString().split('.').last.toLowerCase();
     var size = '';
     try {
-      if (p != null) size = _mb(File(p).lengthSync());
+      if (p != null) size = _mb(fileSize(p));
     } catch (_) {}
     final sub = [if ((m['tag'] ?? '').toString().isNotEmpty) m['tag'], m['date'] ?? '', if (size.isNotEmpty) size, if (m['from'] != null) '👤 ${m['from']}'].join(' · ');
     return Padding(
@@ -419,7 +487,7 @@ class _MemoriesPageState extends State<MemoriesPage> {
         child: Stack(fit: StackFit.expand, children: [
           m['video'] == true
               ? Container(color: Colors.black87, child: const Icon(Icons.play_circle_fill, color: Colors.white, size: 40))
-              : Image.file(File(path), fit: BoxFit.cover, cacheWidth: 360, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image)),
+              : Image.file(Thumbs.get(m['id'].toString(), path) ?? File(path), fit: BoxFit.cover, cacheWidth: 360, gaplessPlayback: true, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image)),
           if (m['from'] != null)
             Positioned(right: 5, bottom: 5, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(8)), child: Text('👤 ${m['from']}', style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)))),
           if (m['reacts'] is Map && (m['reacts'] as Map).isNotEmpty)
@@ -674,7 +742,10 @@ class _ReelMediaState extends State<_ReelMedia> {
   Widget build(BuildContext context) {
     final m = widget.m;
     if (m['video'] != true) {
-      return Image.file(File(m['path'].toString()), fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image, color: Colors.white54, size: 60)));
+      // originals can be 12+ MP – decode only at screen resolution so swiping stays smooth
+      final mq = MediaQuery.of(context);
+      final w = (mq.size.width * mq.devicePixelRatio).round().clamp(720, 1600);
+      return Image.file(File(m['path'].toString()), fit: BoxFit.contain, cacheWidth: w, gaplessPlayback: true, errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image, color: Colors.white54, size: 60)));
     }
     final c = v;
     if (c == null || !c.value.isInitialized) return const Center(child: CircularProgressIndicator(color: Colors.white));

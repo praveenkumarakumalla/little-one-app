@@ -200,7 +200,7 @@ class DriveBackup extends ChangeNotifier {
         await _api!.files.create(meta, uploadMedia: drive.Media(f.openRead(), len), uploadOptions: drive.ResumableUploadOptions());
         final done = _done..add(m['id'].toString());
         Store.i.d['driveDone'] = done.toList();
-        await Store.i.save();
+        await Store.i.saveQuiet(); // no full-app redraw after every upload
       }
       if (records || todo.isNotEmpty) await _uploadRecords(_api!, root);
       status = 'All backed up ✓';
