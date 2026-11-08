@@ -142,3 +142,14 @@ print("service added to", pkg)
 t = os.path.join(ROOT, "test", "widget_test.dart")
 if os.path.exists(t) and "MyApp" in read(t): os.remove(t)
 print("prepare_android: done")
+
+# Use Gradle's own download server (the GitHub mirror Flutter picks sometimes times out with 504).
+import pathlib as _pl, re as _re
+_w = _pl.Path('android/gradle/wrapper/gradle-wrapper.properties')
+if _w.exists():
+    _t = _w.read_text()
+    _t2 = _re.sub(r'https\\?://github\.com/gradle/gradle-distributions/releases/download/v([0-9.]+)/gradle-([0-9.]+)-(all|bin)\.zip',
+                  r'https\\://services.gradle.org/distributions/gradle-\2-\3.zip', _t)
+    if _t2 != _t:
+        _w.write_text(_t2)
+        print('gradle wrapper -> services.gradle.org')
