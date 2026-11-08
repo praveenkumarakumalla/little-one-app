@@ -143,12 +143,29 @@ t = os.path.join(ROOT, "test", "widget_test.dart")
 if os.path.exists(t) and "MyApp" in read(t): os.remove(t)
 print("prepare_android: done")
 
-# Use Gradle's own download server (the GitHub mirror Flutter picks sometimes times out with 504).
+# Gradle download: GitHub (where Gradle hosts its zips) sometimes answers 504 for a while.
+# Fetch the zip ourselves from the first mirror that works, and point the wrapper at the local file.
 _w = os.path.join(ROOT, 'android', 'gradle', 'wrapper', 'gradle-wrapper.properties')
 if os.path.exists(_w):
+    import urllib.request
     _t = read(_w)
-    _t2 = re.sub(r'distributionUrl=.*gradle-([0-9.]+)-(all|bin)\.zip', lambda m: 'distributionUrl=https\\://services.gradle.org/distributions/gradle-%s-%s.zip' % (m.group(1), m.group(2)), _t)
-    write(_w, _t2)
-    print('gradle wrapper:', [l for l in _t2.splitlines() if 'distributionUrl' in l])
-else:
-    print('gradle wrapper properties not found at', _w)
+    _m = re.search(r'gradle-([0-9.]+)-(?:all|bin)\.zip', _t)
+    if _m:
+        _v = _m.group(1)
+        _dst = os.path.join(os.path.expanduser('~'), 'gradle-dl', 'gradle-%s-bin.zip' % _v)
+        os.makedirs(os.path.dirname(_dst), exist_ok=True)
+        for _u in ['https://services.gradle.org/distributions/gradle-%s-bin.zip' % _v,
+                   'https://mirrors.cloud.tencent.com/gradle/gradle-%s-bin.zip' % _v,
+                   'https://mirrors.aliyun.com/gradle/distributions/v%s/gradle-%s-bin.zip' % (_v, _v)]:
+            ok = False
+            for _try in range(2):
+                try:
+                    urllib.request.urlretrieve(_u, _dst)
+                    ok = os.path.getsize(_dst) > 50_000_000
+                    if ok: break
+                except Exception as e:
+                    print('gradle mirror failed', _u, e)
+            if ok:
+                write(_w, re.sub(r'distributionUrl=.*', lambda m: 'distributionUrl=file\\:' + _dst, _t))
+                print('gradle wrapper uses local zip from', _u)
+                break
