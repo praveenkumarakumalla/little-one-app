@@ -214,6 +214,12 @@ class Store extends ChangeNotifier {
     final out = Directory('${dir.path}/$folder');
     if (!out.existsSync()) out.createSync(recursive: true);
     final name = '${newId()}_${srcPath.split('/').last}';
+    // the picker already made a private copy in the cache – just move it (instant), copy only if that fails
+    if (srcPath.contains('/cache/')) {
+      try {
+        return (await File(srcPath).rename('${out.path}/$name')).path;
+      } catch (_) {}
+    }
     final f = await File(srcPath).copy('${out.path}/$name');
     return f.path;
   }

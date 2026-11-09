@@ -190,8 +190,8 @@ class _MemoriesPageState extends State<MemoriesPage> {
     );
     if (ok != true) return;
     for (final x in picked) {
-      final path = await Store.keepFile(x.path, 'memories');
       final mod = await File(x.path).lastModified().catchError((_) => DateTime.now());
+      final path = await Store.keepFile(x.path, 'memories');
       await Store.i.addItem('memories', {'id': Store.newId(), 'path': path, 'video': isVideo(path), 'caption': cap.text.trim(), 'tag': tag, 'date': ymd(mod)});
     }
     if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${picked.length} saved ♡')));

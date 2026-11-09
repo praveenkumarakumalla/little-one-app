@@ -10,6 +10,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -39,6 +40,17 @@ Future<Uint8List> _dec(List<int> key, List<int> data) async {
 
 // Big files are encrypted in a background isolate so the screen never freezes.
 Future<Uint8List> _encIso(List<int> key, List<int> data) => Isolate.run(() => _enc(key, data));
+List<int>? _shrink(Uint8List bytes) {
+  final im = img.decodeImage(bytes);
+  if (im == null) return null;
+  final o = img.bakeOrientation(im);
+  final r = (o.width > 2560 || o.height > 2560)
+      ? (o.width >= o.height ? img.copyResize(o, width: 2560, interpolation: img.Interpolation.average) : img.copyResize(o, height: 2560, interpolation: img.Interpolation.average))
+      : o;
+  return img.encodeJpg(r, quality: 90);
+}
+
+Future<List<int>?> _shrinkIso(Uint8List b) => Isolate.run(() => _shrink(b));
 Future<Uint8List> _decIso(List<int> key, List<int> data) => Isolate.run(() => _dec(key, data));
 
 /// Private family group chat (up to 10 phones).
@@ -145,7 +157,7 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
     }
     _resendTimer = Timer.periodic(const Duration(minutes: 2), (_) => _resend());
     Store.onAdd = (k, item) {
-      if (k == 'memories' && item['remote'] != true) unawaited(shareMemory(item));
+      if (k == 'memories' && item['remote'] != true) unawaited(_shareQueued(item));
       if (syncKeys.contains(k) && item['remote'] != true && paired) unawaited(_publish({'t': 'rec', 'k': k, 'item': {...item, 'by': myName}, 'name': myName}));
     };
     Store.onRemove = (k, id) {
@@ -166,10 +178,35 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// Sends one memory (photo / video) to every phone in the family group.
+  // One memory at a time – picking 10 big photos used to start 10 uploads at once and froze the phone.
+  Future<void> _shareChain = Future.value();
+  Future<void> _shareQueued(Map<String, dynamic> m) => _shareChain = _shareChain.then((_) => shareMemory(m)).catchError((_) => null);
+
+  /// Family copy of a big photo: 2560 px JPEG (~1 MB) so it reaches every phone in seconds.
+  /// The 100% original stays on this phone and in Google Drive.
+  Future<File> _familyCopy(File f, String id) async {
+    final ext = f.path.split('.').last.toLowerCase();
+    if (!['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp'].contains(ext) || await f.length() < 2500000) return f;
+    try {
+      final dir = Directory('${(await getApplicationSupportDirectory()).path}/family');
+      if (!dir.existsSync()) dir.createSync(recursive: true);
+      final out = File('${dir.path}/$id.jpg');
+      if (out.existsSync()) return out;
+      final bytes = await f.readAsBytes();
+      final jpg = await _shrinkIso(bytes);
+      if (jpg == null) return f;
+      await out.writeAsBytes(jpg);
+      return out;
+    } catch (_) {
+      return f; // HEIC etc. that can't be decoded → send the original
+    }
+  }
+
   Future<String?> shareMemory(Map<String, dynamic> m) async {
     if (!paired || m['path'] == null) return 'not paired';
-    final f = File(m['path'].toString());
-    if (!f.existsSync()) return 'missing';
+    final orig = File(m['path'].toString());
+    if (!orig.existsSync()) return 'missing';
+    final f = (m['video'] == true || m['doc'] == true) ? orig : await _familyCopy(orig, m['id'].toString());
     final size = await f.length();
     if (size > maxMem) return 'too big';
     final meta = <String, dynamic>{
