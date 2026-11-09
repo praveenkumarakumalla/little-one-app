@@ -60,6 +60,7 @@ class DriveBackup extends ChangeNotifier {
       if (!ok) return 'Please allow Google Drive access';
       await _connect();
       await Store.i.setSetting('driveOn', true);
+      await Store.i.setSetting('driveIndexed', false); // look at what this Drive already has before uploading
       await Store.i.setSetting('driveEmail', account!.email);
       _sweepTimer ??= Timer.periodic(const Duration(minutes: 20), (_) => sweep());
       unawaited(sweep(records: true));
@@ -180,6 +181,7 @@ class DriveBackup extends ChangeNotifier {
       if (account == null) throw 'Signed out – tap Connect again';
       if (_api == null || DateTime.now().difference(_connectedAt).inMinutes > 40) await _connect(fresh: _api != null);
       final (root, photos, videos, docs) = await _folders();
+      if (Store.i.settings['driveIndexed'] != true) await _indexDrive([photos, videos, docs]);
       final todo = Store.i.list('memories').where((m) => m['path'] != null && !_done.contains(m['id'].toString())).toList();
       var n = 0;
       for (final m in todo) {
@@ -193,6 +195,7 @@ class DriveBackup extends ChangeNotifier {
             ? '${m['caption'].toString().trim()}.${fn.split('.').last}'
             : '${m['date'] ?? ''} ${(m['caption'] ?? '').toString().trim()} $fn'.trim();
         final meta = drive.File()
+          ..appProperties = {'memId': m['id'].toString()}
           ..name = name.length > 120 ? name.substring(name.length - 120) : name
           ..parents = [m['doc'] == true ? docs : m['video'] == true ? videos : photos]
           ..description = [if ((m['caption'] ?? '').toString().isNotEmpty) m['caption'], if ((m['tag'] ?? '').toString().isNotEmpty) m['tag'], if (m['from'] != null) 'by ${m['from']}'].join(' · ');
@@ -209,6 +212,55 @@ class DriveBackup extends ChangeNotifier {
     }
   }
 
+  /// Base file name without our id prefixes ("k3x9_abc12_IMG_2026.jpg" → "IMG_2026.jpg").
+  static String _base(String path) {
+    var b = path.split('/').last;
+    while (RegExp(r'^[a-z0-9]{5,}_').hasMatch(b) && b.indexOf('_') < b.length - 1) {
+      b = b.replaceFirst(RegExp(r'^[a-z0-9]{5,}_'), '');
+    }
+    return b.toLowerCase();
+  }
+
+  /// After a reinstall the phone forgets what is already in Drive. Look once at what's there and mark
+  /// those memories as done, so nothing is uploaded twice.
+  Future<void> _indexDrive(List<String> folders) async {
+    status = 'Checking what is already in Drive…';
+    notifyListeners();
+    final ids = <String>{}, names = <String>{};
+    for (final folder in folders) {
+      String? page;
+      do {
+        final r = await _api!.files.list(q: "'$folder' in parents and trashed=false", $fields: 'nextPageToken, files(name, appProperties)', pageSize: 1000, pageToken: page, spaces: 'drive');
+        for (final f in r.files ?? <drive.File>[]) {
+          final id = f.appProperties?['memId'];
+          if (id != null) ids.add(id);
+          final n = (f.name ?? '').toLowerCase();
+          names.add(n);
+        }
+        page = r.nextPageToken;
+      } while (page != null);
+    }
+    final done = _done;
+    for (final m in Store.i.list('memories')) {
+      final id = m['id'].toString();
+      if (done.contains(id)) continue;
+      if (ids.contains(id)) {
+        done.add(id);
+        continue;
+      }
+      final p = (m['path'] ?? m['fname'] ?? '').toString();
+      if (p.isEmpty) continue;
+      final base = _base(p), date = (m['date'] ?? '').toString();
+      final cap = (m['caption'] ?? '').toString().trim().toLowerCase();
+      if (names.any((n) => n.endsWith(base) && (date.isEmpty || n.startsWith(date))) || (m['doc'] == true && cap.isNotEmpty && names.any((n) => n.startsWith('$cap.')))) {
+        done.add(id);
+      }
+    }
+    Store.i.d['driveDone'] = done.toList();
+    await Store.i.saveQuiet();
+    await Store.i.setSetting('driveIndexed', true);
+  }
+
   Future<void> _uploadRecords(drive.DriveApi api, String root) async {
     final recs = <String, dynamic>{
       'baby': Store.i.profile,
@@ -221,7 +273,13 @@ class DriveBackup extends ChangeNotifier {
     if (body == _lastRecHash) return;
     final bytes = utf8.encode(const JsonEncoder.withIndent(' ').convert(recs));
     final folder = await _folder('Records', root, 'driveRecords');
-    final id = Store.i.settings['driveRecFile']?.toString();
+    var id = Store.i.settings['driveRecFile']?.toString();
+    if (id == null) {
+      // reinstall: reuse the existing records file instead of making a second one
+      final r = await api.files.list(q: "name='little_one_records.json' and '$folder' in parents and trashed=false", $fields: 'files(id)', spaces: 'drive');
+      id = r.files?.isNotEmpty == true ? r.files!.first.id : null;
+      if (id != null) await Store.i.setSetting('driveRecFile', id);
+    }
     final media = drive.Media(Stream.value(bytes), bytes.length, contentType: 'application/json');
     try {
       if (id != null) {
