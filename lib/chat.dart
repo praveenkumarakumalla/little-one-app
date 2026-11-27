@@ -47,7 +47,7 @@ List<int>? _shrink(Uint8List bytes) {
   final r = (o.width > 2560 || o.height > 2560)
       ? (o.width >= o.height ? img.copyResize(o, width: 2560, interpolation: img.Interpolation.average) : img.copyResize(o, height: 2560, interpolation: img.Interpolation.average))
       : o;
-  return img.encodeJpg(r, quality: 90);
+  return img.encodeJpg(r, quality: 92);
 }
 
 Future<List<int>?> _shrinkIso(Uint8List b) => Isolate.run(() => _shrink(b));
@@ -282,6 +282,16 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   final Set<String> _memDl = {};
+  final Map<String, int> _memTries = {};
+  /// A failed download (slow network, relay hiccup) is retried in 15 s, 30 s, 1 min … up to ~1 hour.
+  void _retryDownload(String id) {
+    final n = (_memTries[id] ?? 0) + 1;
+    _memTries[id] = n;
+    if (n > 8) return;
+    const waits = [15, 30, 60, 120, 300, 600, 900, 1800];
+    Timer(Duration(seconds: waits[n - 1]), () => downloadMemory(id));
+  }
+
   Future<void> downloadMemory(String id) async {
     final m = Store.i.list('memories').where((x) => x['id'] == id).firstOrNull;
     if (m == null || m['path'] != null || _memDl.contains(id)) return;
@@ -309,9 +319,14 @@ class Chat extends ChangeNotifier with WidgetsBindingObserver {
         await f.writeAsBytes(clear, flush: true);
         Store.i.d['memories'] = Store.i.list('memories').map((x) => x['id'] == id ? {...x, 'path': f.path, 'url': null, 'urls': null} : x).toList();
         await Store.i.save();
+        _memTries.remove(id);
         notifyListeners();
+      } else {
+        _retryDownload(id);
       }
-    } catch (_) {}
+    } catch (_) {
+      _retryDownload(id);
+    }
     _memDl.remove(id);
   }
 

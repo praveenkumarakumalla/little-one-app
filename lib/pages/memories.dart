@@ -35,7 +35,7 @@ class Thumbs {
       _init();
       return null;
     }
-    final f = File('${d.path}/$id.png');
+    final f = File('${d.path}/${id}_480.png');
     final ok = _have[id] ??= f.existsSync();
     if (ok) return f;
     if (!_queue.any((q) => q.$1 == id)) {
@@ -60,11 +60,11 @@ class Thumbs {
       final (id, path) = _queue.removeAt(0);
       try {
         final bytes = await File(path).readAsBytes();
-        final codec = await ui.instantiateImageCodec(bytes, targetWidth: 360);
+        final codec = await ui.instantiateImageCodec(bytes, targetWidth: 480);
         final frame = await codec.getNextFrame();
         final png = await frame.image.toByteData(format: ui.ImageByteFormat.png);
         frame.image.dispose();
-        if (png != null) await File('${_dir!.path}/$id.png').writeAsBytes(png.buffer.asUint8List());
+        if (png != null) await File('${_dir!.path}/${id}_480.png').writeAsBytes(png.buffer.asUint8List());
         _have[id] = png != null;
       } catch (_) {
         _have[id] = false; // keep using the original
@@ -487,7 +487,7 @@ class _MemoriesPageState extends State<MemoriesPage> {
         child: Stack(fit: StackFit.expand, children: [
           m['video'] == true
               ? Container(color: Colors.black87, child: const Icon(Icons.play_circle_fill, color: Colors.white, size: 40))
-              : Image.file(Thumbs.get(m['id'].toString(), path) ?? File(path), fit: BoxFit.cover, cacheWidth: 360, gaplessPlayback: true, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image)),
+              : Image.file(Thumbs.get(m['id'].toString(), path) ?? File(path), fit: BoxFit.cover, cacheWidth: 480, gaplessPlayback: true, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image)),
           if (m['from'] != null)
             Positioned(right: 5, bottom: 5, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(8)), child: Text('👤 ${m['from']}', style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)))),
           if (m['reacts'] is Map && (m['reacts'] as Map).isNotEmpty)
