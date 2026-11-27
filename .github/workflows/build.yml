@@ -42,8 +42,12 @@ jobs:
       - name: Skip plugin lint (Gradle lint crashes on some plugins; the app itself is still checked by flutter analyze)
         run: |
           for f in android/build.gradle.kts android/build.gradle; do
-            [ -f "$f" ] && printf '\nsubprojects { tasks.matching { it.name.startsWith("lintVital") }.configureEach { enabled = false } }\n' >> "$f" && echo "patched $f"
+            if [ -f "$f" ]; then
+              printf '\nsubprojects { tasks.matching { it.name.startsWith("lintVital") }.configureEach { enabled = false } }\n' >> "$f"
+              echo "patched $f"
+            fi
           done
+          exit 0
 
       - name: Get packages
         run: flutter pub get
