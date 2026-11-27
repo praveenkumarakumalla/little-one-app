@@ -134,7 +134,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())),
           onLongPress: () {
             HapticFeedback.heavyImpact();
-            openOurWorld();
+            showModalBottomSheet<void>(  context: context,  showDragHandle: true,  builder: (sheetContext) => SafeArea(    child: Column(mainAxisSize: MainAxisSize.min, children: [      ListTile(leading: const Text('🌍', style: TextStyle(fontSize: 26)), title: const Text('Our Little World'), onTap: () { Navigator.pop(sheetContext); openOurWorld(); }),      ListTile(leading: const Text('🪄', style: TextStyle(fontSize: 26)), title: const Text('Wizard’s reading room'), subtitle: const Text('Your saved PDF pages'), onTap: () { Navigator.pop(sheetContext); openReadingRoom(); }),    ]),  ),);
           },
           child: const Padding(padding: EdgeInsets.all(12), child: Text('👶', style: TextStyle(fontSize: 24))),
         ),
