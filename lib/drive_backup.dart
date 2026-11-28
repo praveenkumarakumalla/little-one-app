@@ -196,7 +196,7 @@ class DriveBackup extends ChangeNotifier {
         final f = File(m['path'].toString());
         if (!f.existsSync()) continue;
         if (DateTime.now().difference(_connectedAt).inMinutes > 40) await _connect(fresh: true);
-        final sum = await _md5Of(m['id'].toString(), f);
+        final sum = await _shaOf(m['id'].toString(), f);
         if (_knownSums().contains(sum)) {
           // same photo/video is already in Drive (even under another memory): don't upload it again
           final done = _done..add(m['id'].toString());
@@ -211,7 +211,7 @@ class DriveBackup extends ChangeNotifier {
             ? '${m['caption'].toString().trim()}.${fn.split('.').last}'
             : '${m['date'] ?? ''} ${(m['caption'] ?? '').toString().trim()} $fn'.trim();
         final meta = drive.File()
-          ..appProperties = {'memId': m['id'].toString()}
+          ..appProperties = {'memId': m['id'].toString(), 'sha': sum}
           ..name = name.length > 120 ? name.substring(name.length - 120) : name
           ..parents = [m['doc'] == true ? docs : m['video'] == true ? videos : photos]
           ..description = [if ((m['caption'] ?? '').toString().isNotEmpty) m['caption'], if ((m['tag'] ?? '').toString().isNotEmpty) m['tag'], if (m['from'] != null) 'by ${m['from']}'].join(' · ');
@@ -247,11 +247,12 @@ class DriveBackup extends ChangeNotifier {
     for (final folder in folders) {
       String? page;
       do {
-        final r = await _api!.files.list(q: "'$folder' in parents and trashed=false", $fields: 'nextPageToken, files(name, appProperties, md5Checksum)', pageSize: 1000, pageToken: page, spaces: 'drive');
+        final r = await _api!.files.list(q: "'$folder' in parents and trashed=false", $fields: 'nextPageToken, files(name, appProperties)', pageSize: 1000, pageToken: page, spaces: 'drive');
         for (final f in r.files ?? <drive.File>[]) {
           final id = f.appProperties?['memId'];
           if (id != null) ids.add(id);
-          if (f.md5Checksum != null) sums.add(f.md5Checksum!);
+          final sh = f.appProperties?['sha'];
+          if (sh != null) sums.add(sh);
           final n = (f.name ?? '').toLowerCase();
           names.add(n);
         }
@@ -280,6 +281,7 @@ class DriveBackup extends ChangeNotifier {
     await Store.i.setSetting('driveIndexed', true);
   }
 
+  /// Checksums of photos/videos already in Drive (stored on each upload as appProperties 'sha').
   Set<String> _knownSums() => ((Store.i.d['driveSum'] as List?) ?? []).map((e) => e.toString()).toSet();
 
   void _rememberSums(Set<String> more) {
@@ -287,12 +289,12 @@ class DriveBackup extends ChangeNotifier {
     Store.i.d['driveSum'] = {..._knownSums(), ...more}.toList();
   }
 
-  /// MD5 of a photo/video (Drive reports the same MD5), computed once per memory and cached.
-  Future<String> _md5Of(String id, File f) async {
+  /// SHA-256 of a photo/video, computed once per memory and cached.
+  Future<String> _shaOf(String id, File f) async {
     final cache = Map<String, dynamic>.from((Store.i.d['driveHash'] as Map?) ?? {});
     final c = cache[id];
     if (c is String) return c;
-    final h = await Md5().hash(await f.readAsBytes());
+    final h = await Sha256().hash(await f.readAsBytes());
     final sum = h.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
     cache[id] = sum;
     Store.i.d['driveHash'] = cache;
