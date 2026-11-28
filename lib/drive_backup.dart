@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
@@ -15,7 +16,7 @@ import 'store.dart';
 ///  • Notes, events, growth, vaccines, feeds… → "Little One – <name>/Records/little_one_records.json"
 /// Only files this app creates are visible to it (drive.file scope) – it can't read anything else in the Drive.
 /// Phone-only state: this phone's family-chat setup, pending sends, file paths and Drive ids.
-const _phoneOnly = {'chatCfg', 'memOut', 'memories', 'songFiles', 'driveDone', 'driveRecFile', 'driveIndexed', 'driveOn', 'driveEmail', 'driveLast', 'nameFix1', 'settings'};
+const _phoneOnly = {'chatCfg', 'memOut', 'memories', 'songFiles', 'driveDone', 'driveRecFile', 'driveIndexed', 'driveOn', 'driveEmail', 'driveLast', 'nameFix1', 'settings', 'driveHash', 'driveSum'};
 
 class DriveBackup extends ChangeNotifier {
   DriveBackup._();
@@ -195,6 +196,14 @@ class DriveBackup extends ChangeNotifier {
         final f = File(m['path'].toString());
         if (!f.existsSync()) continue;
         if (DateTime.now().difference(_connectedAt).inMinutes > 40) await _connect(fresh: true);
+        final sum = await _md5Of(m['id'].toString(), f);
+        if (_knownSums().contains(sum)) {
+          // same photo/video is already in Drive (even under another memory): don't upload it again
+          final done = _done..add(m['id'].toString());
+          Store.i.d['driveDone'] = done.toList();
+          await Store.i.saveQuiet();
+          continue;
+        }
         status = 'Uploading ${++n} of ${todo.length}…';
         notifyListeners();
         final fn = f.path.split('/').last.replaceFirst(RegExp(r'^[a-z0-9]+_'), ''); // drop our internal id prefix
@@ -208,6 +217,7 @@ class DriveBackup extends ChangeNotifier {
           ..description = [if ((m['caption'] ?? '').toString().isNotEmpty) m['caption'], if ((m['tag'] ?? '').toString().isNotEmpty) m['tag'], if (m['from'] != null) 'by ${m['from']}'].join(' · ');
         final len = await f.length();
         await _api!.files.create(meta, uploadMedia: drive.Media(f.openRead(), len), uploadOptions: drive.ResumableUploadOptions());
+        _rememberSums({sum});
         final done = _done..add(m['id'].toString());
         Store.i.d['driveDone'] = done.toList();
         await Store.i.saveQuiet(); // no full-app redraw after every upload
@@ -233,20 +243,22 @@ class DriveBackup extends ChangeNotifier {
   Future<void> _indexDrive(List<String> folders) async {
     status = 'Checking what is already in Drive…';
     notifyListeners();
-    final ids = <String>{}, names = <String>{};
+    final ids = <String>{}, names = <String>{}, sums = <String>{};
     for (final folder in folders) {
       String? page;
       do {
-        final r = await _api!.files.list(q: "'$folder' in parents and trashed=false", $fields: 'nextPageToken, files(name, appProperties)', pageSize: 1000, pageToken: page, spaces: 'drive');
+        final r = await _api!.files.list(q: "'$folder' in parents and trashed=false", $fields: 'nextPageToken, files(name, appProperties, md5Checksum)', pageSize: 1000, pageToken: page, spaces: 'drive');
         for (final f in r.files ?? <drive.File>[]) {
           final id = f.appProperties?['memId'];
           if (id != null) ids.add(id);
+          if (f.md5Checksum != null) sums.add(f.md5Checksum!);
           final n = (f.name ?? '').toLowerCase();
           names.add(n);
         }
         page = r.nextPageToken;
       } while (page != null);
     }
+    _rememberSums(sums);
     final done = _done;
     for (final m in Store.i.list('memories')) {
       final id = m['id'].toString();
@@ -266,6 +278,25 @@ class DriveBackup extends ChangeNotifier {
     Store.i.d['driveDone'] = done.toList();
     await Store.i.saveQuiet();
     await Store.i.setSetting('driveIndexed', true);
+  }
+
+  Set<String> _knownSums() => ((Store.i.d['driveSum'] as List?) ?? []).map((e) => e.toString()).toSet();
+
+  void _rememberSums(Set<String> more) {
+    if (more.isEmpty) return;
+    Store.i.d['driveSum'] = {..._knownSums(), ...more}.toList();
+  }
+
+  /// MD5 of a photo/video (Drive reports the same MD5), computed once per memory and cached.
+  Future<String> _md5Of(String id, File f) async {
+    final cache = Map<String, dynamic>.from((Store.i.d['driveHash'] as Map?) ?? {});
+    final c = cache[id];
+    if (c is String) return c;
+    final h = await Md5().hash(await f.readAsBytes());
+    final sum = h.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    cache[id] = sum;
+    Store.i.d['driveHash'] = cache;
+    return sum;
   }
 
   /// After a reinstall: bring the records (profile, notes, feeds, growth, vaccines…) and every
