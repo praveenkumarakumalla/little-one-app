@@ -14,6 +14,9 @@ import 'store.dart';
 ///  • Every photo/video in Memories → "Little One – <name>/Photos" or "/Videos"
 ///  • Notes, events, growth, vaccines, feeds… → "Little One – <name>/Records/little_one_records.json"
 /// Only files this app creates are visible to it (drive.file scope) – it can't read anything else in the Drive.
+/// Phone-only state: this phone's family-chat setup, pending sends, file paths and Drive ids.
+const _phoneOnly = {'chatCfg', 'memOut', 'memories', 'songFiles', 'driveDone', 'driveRecFile', 'driveIndexed', 'driveOn', 'driveEmail', 'driveLast', 'nameFix1', 'settings'};
+
 class DriveBackup extends ChangeNotifier {
   DriveBackup._();
   static final DriveBackup i = DriveBackup._();
@@ -287,16 +290,33 @@ class DriveBackup extends ChangeNotifier {
       }
       final bp = recs['baby'];
       if (bp is Map && bp.isNotEmpty) Store.i.d['profile'] = Map<String, dynamic>.from(bp);
-      for (final k in ['notes', 'events', 'growth', 'vax', 'feeds', 'nappies', 'sleeps', 'cries', 'voices', 'chat']) {
-        final src = recs[k];
-        if (src is! List) continue;
-        final local = (Store.i.d[k] as List? ?? []).toList();
-        final seen = local.map((e) => jsonEncode(e)).toSet();
-        for (final e in src) {
-          if (seen.add(jsonEncode(e))) local.add(e);
+      for (final e in recs.entries) {
+        final k = e.key, src = e.value;
+        if (_phoneOnly.contains(k) || k == 'baby' || k == 'memories' || k == 'savedAt' || src == null) continue;
+        if (src is List) {
+          // lists (notes, feeds, chat, tombstones…): add what this phone doesn't have yet
+          final local = (Store.i.d[k] as List? ?? []).toList();
+          final seen = local.map((x) => jsonEncode(x)).toSet();
+          for (final x in src) {
+            if (seen.add(jsonEncode(x))) local.add(x);
+          }
+          if (k == 'chat') local.sort((a, b) => ((a as Map)['at'] as num? ?? 0).compareTo((b as Map)['at'] as num? ?? 0));
+          Store.i.d[k] = local;
+        } else if (src is Map) {
+          // maps (settings, mala…): fill in keys this phone doesn't have
+          final local = Map<String, dynamic>.from((Store.i.d[k] as Map?) ?? {});
+          for (final x in src.entries) {
+            local.putIfAbsent(x.key.toString(), () => x.value);
+          }
+          Store.i.d[k] = local;
         }
-        if (k == 'chat') local.sort((a, b) => ((a as Map)['at'] as num? ?? 0).compareTo((b as Map)['at'] as num? ?? 0));
-        Store.i.d[k] = local;
+      }
+      if (recs['settings'] is Map) {
+        final st = Map<String, dynamic>.from(Store.i.d['settings'] as Map);
+        for (final x in (recs['settings'] as Map).entries) {
+          st.putIfAbsent(x.key.toString(), () => x.value);
+        }
+        Store.i.d['settings'] = st;
       }
       final meta = <String, Map<String, dynamic>>{
         for (final m in (recs['memories'] as List? ?? []))
@@ -377,8 +397,9 @@ class DriveBackup extends ChangeNotifier {
   Future<void> _uploadRecords(drive.DriveApi api, String root) async {
     final recs = <String, dynamic>{
       'baby': Store.i.profile,
-      for (final k in ['notes', 'events', 'growth', 'vax', 'feeds', 'nappies', 'sleeps', 'cries', 'voices', 'chat'])
-        if (Store.i.d[k] != null) k: Store.i.d[k],
+      for (final k in Store.i.d.keys)
+        if (!_phoneOnly.contains(k) && Store.i.d[k] != null) k: Store.i.d[k],
+      'settings': {for (final e in Store.i.settings.entries) if (!e.key.startsWith('drive')) e.key: e.value},
       'memories': Store.i.list('memories').map((m) => {for (final k in ['id', 'caption', 'tag', 'date', 'video', 'doc', 'from', 'reacts']) if (m[k] != null) k: m[k]}).toList(),
       'savedAt': DateTime.now().toIso8601String(),
     };
