@@ -287,7 +287,7 @@ class DriveBackup extends ChangeNotifier {
       }
       final bp = recs['baby'];
       if (bp is Map && bp.isNotEmpty) Store.i.d['profile'] = Map<String, dynamic>.from(bp);
-      for (final k in ['notes', 'events', 'growth', 'vax', 'feeds', 'nappies', 'sleeps', 'cries', 'voices']) {
+      for (final k in ['notes', 'events', 'growth', 'vax', 'feeds', 'nappies', 'sleeps', 'cries', 'voices', 'chat']) {
         final src = recs[k];
         if (src is! List) continue;
         final local = (Store.i.d[k] as List? ?? []).toList();
@@ -295,6 +295,7 @@ class DriveBackup extends ChangeNotifier {
         for (final e in src) {
           if (seen.add(jsonEncode(e))) local.add(e);
         }
+        if (k == 'chat') local.sort((a, b) => ((a as Map)['at'] as num? ?? 0).compareTo((b as Map)['at'] as num? ?? 0));
         Store.i.d[k] = local;
       }
       final meta = <String, Map<String, dynamic>>{
@@ -376,13 +377,13 @@ class DriveBackup extends ChangeNotifier {
   Future<void> _uploadRecords(drive.DriveApi api, String root) async {
     final recs = <String, dynamic>{
       'baby': Store.i.profile,
-      for (final k in ['notes', 'events', 'growth', 'vax', 'feeds', 'nappies', 'sleeps', 'cries', 'voices'])
+      for (final k in ['notes', 'events', 'growth', 'vax', 'feeds', 'nappies', 'sleeps', 'cries', 'voices', 'chat'])
         if (Store.i.d[k] != null) k: Store.i.d[k],
       'memories': Store.i.list('memories').map((m) => {for (final k in ['id', 'caption', 'tag', 'date', 'video', 'doc', 'from', 'reacts']) if (m[k] != null) k: m[k]}).toList(),
       'savedAt': DateTime.now().toIso8601String(),
     };
     // never replace a backup with an empty phone (e.g. right after a reinstall)
-    if (['memories', 'notes', 'feeds', 'nappies', 'sleeps', 'growth', 'vax', 'cries', 'voices'].every((k) => (recs[k] as List?)?.isEmpty ?? true)) return;
+    if (['memories', 'notes', 'feeds', 'nappies', 'sleeps', 'growth', 'vax', 'cries', 'voices', 'chat'].every((k) => (recs[k] as List?)?.isEmpty ?? true)) return;
     final body = const JsonEncoder.withIndent(' ').convert({...recs, 'savedAt': null});
     if (body == _lastRecHash) return;
     final bytes = utf8.encode(const JsonEncoder.withIndent(' ').convert(recs));
