@@ -6,6 +6,7 @@ import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sig
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
+import 'package:path_provider/path_provider.dart';
 
 import 'store.dart';
 
@@ -59,6 +60,9 @@ class DriveBackup extends ChangeNotifier {
       final ok = await _gsi.requestScopes([drive.DriveApi.driveFileScope]);
       if (!ok) return 'Please allow Google Drive access';
       await _connect();
+      // Restore first: a reinstalled phone is empty, and uploading it would overwrite the backup.
+      final err = await restoreFromDrive();
+      if (err != null) lastError = err;
       await Store.i.setSetting('driveOn', true);
       await Store.i.setSetting('driveIndexed', false); // look at what this Drive already has before uploading
       await Store.i.setSetting('driveEmail', account!.email);
@@ -261,14 +265,124 @@ class DriveBackup extends ChangeNotifier {
     await Store.i.setSetting('driveIndexed', true);
   }
 
+  /// After a reinstall: bring the records (profile, notes, feeds, growth, vaccines…) and every
+  /// memory file back from this baby's Drive. Only adds what the phone doesn't have yet.
+  Future<String?> restoreFromDrive() async {
+    final api = _api;
+    if (api == null) return 'Not connected to Drive';
+    try {
+      status = 'Restoring from Google Drive…';
+      notifyListeners();
+      final rf = await api.files.list(q: "name='little_one_records.json' and trashed=false", $fields: 'files(id, modifiedTime)', orderBy: 'modifiedTime desc', pageSize: 1, spaces: 'drive');
+      final recId = rf.files?.isNotEmpty == true ? rf.files!.first.id : null;
+      var recs = <String, dynamic>{};
+      if (recId != null) {
+        final media = await api.files.get(recId, downloadOptions: drive.DownloadOptions.fullMedia) as drive.Media;
+        final bytes = <int>[];
+        await for (final c in media.stream) {
+          bytes.addAll(c);
+        }
+        recs = Map<String, dynamic>.from(jsonDecode(utf8.decode(bytes)) as Map);
+        await Store.i.setSetting('driveRecFile', recId);
+      }
+      final bp = recs['baby'];
+      if (bp is Map && bp.isNotEmpty) Store.i.d['profile'] = Map<String, dynamic>.from(bp);
+      for (final k in ['notes', 'events', 'growth', 'vax', 'feeds', 'nappies', 'sleeps', 'cries', 'voices']) {
+        final src = recs[k];
+        if (src is! List) continue;
+        final local = (Store.i.d[k] as List? ?? []).toList();
+        final seen = local.map((e) => jsonEncode(e)).toSet();
+        for (final e in src) {
+          if (seen.add(jsonEncode(e))) local.add(e);
+        }
+        Store.i.d[k] = local;
+      }
+      final meta = <String, Map<String, dynamic>>{
+        for (final m in (recs['memories'] as List? ?? []))
+          if (m is Map) m['id'].toString(): Map<String, dynamic>.from(m),
+      };
+
+      final folders = <String, String>{};
+      String? page;
+      do {
+        final r = await api.files.list(q: "mimeType='application/vnd.google-apps.folder' and trashed=false", $fields: 'nextPageToken, files(id, name)', pageSize: 1000, pageToken: page, spaces: 'drive');
+        for (final f in r.files ?? <drive.File>[]) {
+          if (f.id != null) folders[f.id!] = f.name ?? '';
+        }
+        page = r.nextPageToken;
+      } while (page != null);
+
+      final have = Store.i.list('memories').map((m) => m['id'].toString()).toSet();
+      final todo = <(drive.File, String)>[];
+      page = null;
+      do {
+        final r = await api.files.list(q: "trashed=false and mimeType!='application/vnd.google-apps.folder'", $fields: 'nextPageToken, files(id, name, createdTime, parents, appProperties)', pageSize: 1000, pageToken: page, spaces: 'drive');
+        for (final f in r.files ?? <drive.File>[]) {
+          final id = f.appProperties?['memId'];
+          if (id != null && !have.contains(id)) todo.add((f, id));
+        }
+        page = r.nextPageToken;
+      } while (page != null);
+
+      final dir = Directory('${(await getApplicationDocumentsDirectory()).path}/memories');
+      if (!dir.existsSync()) dir.createSync(recursive: true);
+      final list = Store.i.list('memories');
+      final restoredIds = <String>[];
+      var n = 0;
+      for (final (f, id) in todo) {
+        n++;
+        status = 'Restoring memory $n of ${todo.length}…';
+        notifyListeners();
+        final parent = (f.parents?.isNotEmpty == true) ? (folders[f.parents!.first] ?? '') : '';
+        final m = meta[id] ?? <String, dynamic>{};
+        final name = f.name ?? '$id.jpg';
+        final file = File('${dir.path}/${id}_${name.replaceAll(RegExp(r'[^\w.\- ]'), '_')}');
+        try {
+          final media = await api.files.get(f.id!, downloadOptions: drive.DownloadOptions.fullMedia) as drive.Media;
+          await media.stream.pipe(file.openWrite());
+        } catch (_) {
+          continue;
+        }
+        final date = (m['date'] ?? f.createdTime?.toIso8601String() ?? '').toString();
+        list.add({
+          'id': id,
+          'path': file.path,
+          'fname': name,
+          'date': date.length >= 10 ? date.substring(0, 10) : date,
+          'caption': m['caption'] ?? '',
+          'tag': m['tag'] ?? '',
+          'video': parent == 'Videos' || m['video'] == true,
+          if (parent == 'Documents' || m['doc'] == true) 'doc': true,
+          if (m['from'] != null) 'from': m['from'],
+          if (m['reacts'] != null) 'reacts': m['reacts'],
+          'remote': true,
+        });
+        restoredIds.add(id);
+      }
+      Store.i.d['memories'] = list;
+      Store.i.d['driveDone'] = {..._done, ...restoredIds}.toList();
+      await Store.i.setSetting('driveIndexed', true);
+      await Store.i.save();
+      status = recs.isEmpty && restoredIds.isEmpty ? 'Nothing to restore' : 'Restored ${restoredIds.length} memories ✓';
+      notifyListeners();
+      return null;
+    } catch (e) {
+      status = 'Restore did not finish – will retry';
+      notifyListeners();
+      return 'Restore: $e';
+    }
+  }
+
   Future<void> _uploadRecords(drive.DriveApi api, String root) async {
     final recs = <String, dynamic>{
       'baby': Store.i.profile,
       for (final k in ['notes', 'events', 'growth', 'vax', 'feeds', 'nappies', 'sleeps', 'cries', 'voices'])
         if (Store.i.d[k] != null) k: Store.i.d[k],
-      'memories': Store.i.list('memories').map((m) => {for (final k in ['id', 'caption', 'tag', 'date', 'video', 'from', 'reacts']) if (m[k] != null) k: m[k]}).toList(),
+      'memories': Store.i.list('memories').map((m) => {for (final k in ['id', 'caption', 'tag', 'date', 'video', 'doc', 'from', 'reacts']) if (m[k] != null) k: m[k]}).toList(),
       'savedAt': DateTime.now().toIso8601String(),
     };
+    // never replace a backup with an empty phone (e.g. right after a reinstall)
+    if (['memories', 'notes', 'feeds', 'nappies', 'sleeps', 'growth', 'vax', 'cries', 'voices'].every((k) => (recs[k] as List?)?.isEmpty ?? true)) return;
     final body = const JsonEncoder.withIndent(' ').convert({...recs, 'savedAt': null});
     if (body == _lastRecHash) return;
     final bytes = utf8.encode(const JsonEncoder.withIndent(' ').convert(recs));
